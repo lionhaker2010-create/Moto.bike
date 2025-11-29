@@ -1169,14 +1169,14 @@ def main():
         logger.error("BOT_TOKEN topilmadi! .env faylini tekshiring.")
         return
     
-    # Bot ilovasini yaratish
+    # Bot ilovasini yaratish (Application builder bilan)
     application = Application.builder().token(TOKEN).build()
     
     # 1. Avval ADMIN handlerini qo'shamiz
     from admin import get_admin_handler
     application.add_handler(get_admin_handler())
     
-    # 2. Callback query handler qo'shamiz (YANGI)
+    # 2. Callback query handler qo'shamiz
     application.add_handler(CallbackQueryHandler(handle_callback_query))
     
     # 3. Conversation handler
