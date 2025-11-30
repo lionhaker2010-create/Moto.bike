@@ -34,15 +34,23 @@ def status():
         "version": "1.0"
     }, 200
 
-@app.route('/keep-alive')
-def keep_alive_endpoint():
+# ✅ YANGI NOM - "active" emas
+@app.route('/keep-alive-ping')
+def keep_alive_ping():
     """Maxsus keep-alive endpoint"""
     return {"alive": True, "timestamp": datetime.now().isoformat()}, 200
 
-@app.route('/awake')
-def awake():
+# ✅ YANGI NOM - "awake" emas  
+@app.route('/wake-up')
+def wake_up():
     """Uyg'onish uchun"""
     return "🔄 Bot uyg'on!", 200
+
+# ✅ YANGI ENDPOINT
+@app.route('/alive-check')
+def alive_check():
+    """Hayot belgisi"""
+    return {"status": "alive", "service": "keep-alive"}, 200
 
 def keep_awake():
     """1 daqiqa interval - OXIRGI URINISH"""
@@ -54,8 +62,8 @@ def keep_awake():
                 'https://moto-bike-jliv.onrender.com/ping',
                 'https://moto-bike-jliv.onrender.com/health',
                 'https://moto-bike-jliv.onrender.com/status',
-                'https://moto-bike-jliv.onrender.com/keep-alive',
-                'https://moto-bike-jliv.onrender.com/awake'
+                'https://moto-bike-jliv.onrender.com/keep-alive-ping',  # ✅ YANGI NOM
+                'https://moto-bike-jliv.onrender.com/wake-up'           # ✅ YANGI NOM
             ]
             
             for url in urls:
