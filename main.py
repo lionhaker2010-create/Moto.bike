@@ -206,6 +206,38 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=get_language_keyboard()
         )
         return LANGUAGE
+        
+# start funksiyasidan keyin qo'shamiz
+async def send_new_user_notification(context: ContextTypes.DEFAULT_TYPE, user_id, first_name):
+    """Yangi foydalanuvchi haqida admin ga xabar yuborish"""
+    try:
+        admin_id = os.getenv('ADMIN_ID')
+        if not admin_id:
+            logger.error("ADMIN_ID topilmadi!")
+            return
+        
+        # Foydalanuvchi ma'lumotlarini olish
+        user_data = db.get_user(user_id)
+        registration_time = user_data[6] if user_data and len(user_data) > 6 else "Noma'lum"
+        
+        message = (
+            f"👤 **YANGI FOYDALANUVCHI RO'YXATDAN O'TDI!**\n\n"
+            f"🆔 **ID:** `{user_id}`\n"
+            f"👤 **Ism:** {first_name}\n"
+            f"📅 **Ro'yxatdan o'tgan vaqt:** {registration_time}\n"
+            f"👥 **Jami foydalanuvchilar:** {len(db.get_all_users())} ta\n\n"
+            f"🎉 Tabriklaymiz! Yangi mijoz qo'shildi!"
+        )
+        
+        await context.bot.send_message(
+            chat_id=admin_id,
+            text=message,
+            parse_mode='Markdown'
+        )
+        logger.info(f"Yangi foydalanuvchi haqida admin ga xabar yuborildi: {user_id}")
+        
+    except Exception as e:
+        logger.error(f"Admin ga xabar yuborishda xatolik: {e}")        
 
 # Tilni tanlash - YANGILANDI
 async def choose_language(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -270,6 +302,7 @@ async def get_phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # Joylashuv qabul qilish
 async def get_location(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
+    first_name = update.effective_user.first_name
     
     if update.message.location:
         location = f"{update.message.location.latitude}, {update.message.location.longitude}"
@@ -293,6 +326,10 @@ async def get_location(update: Update, context: ContextTypes.DEFAULT_TYPE):
         get_text(user_id, 'registration_success'),
         reply_markup=get_main_menu_keyboard(user_id)
     )
+    
+    # ✅ YANGI QO'SHILGAN QISM: Admin ga xabar yuborish
+    await send_new_user_notification(context, user_id, first_name)
+    
     return MAIN_MENU
 
 # Asosiy menyu
