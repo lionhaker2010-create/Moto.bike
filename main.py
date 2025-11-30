@@ -10,6 +10,7 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters, C
 from database import db
 import logging
 from dotenv import load_dotenv
+from keep_alive import keep_alive, start_background_ping
 
 # .env faylini yuklash
 load_dotenv()
@@ -48,16 +49,6 @@ def status():
         "timestamp": datetime.now().isoformat(),
         "version": "1.0"
     }, 200
-       
-@app.route('/active')
-def active():
-    """Faollikni ko'rsatish uchun maxsus endpoint"""
-    return {"active": True, "timestamp": datetime.now().isoformat()}, 200
-
-@app.route('/wakeup')
-def wakeup():
-    """Uyg'otish uchun endpoint"""
-    return "Bot uyg'on! 🎉", 200    
 
 @app.route('/active')
 def active():
@@ -68,6 +59,11 @@ def active():
         "timestamp": datetime.now().isoformat(),
         "uptime": "running"
     }, 200
+
+@app.route('/wakeup')
+def wakeup():
+    """Uyg'otish uchun endpoint"""
+    return "Bot uyg'on! 🎉", 200
 
 @app.route('/monitoring')
 def monitoring():
@@ -89,7 +85,15 @@ def monitoring():
             }
         }, 200
     except Exception as e:
-        return {"status": "error", "message": str(e)}, 500    
+        return {"status": "error", "message": str(e)}, 500
+
+# ✅ FAQAT BITTA KEEP-ALIVE ISHLATAMIZ
+keep_alive()
+print("✅ MotoBot Keep-alive server started!")
+
+# Background ping ni ishga tushirish
+start_background_ping()
+print("✅ MotoBot Auto-ping started!")      
 
 # main.py dagi keep_awake funksiyasini yangilaymiz
 def keep_awake():
