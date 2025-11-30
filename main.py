@@ -1230,6 +1230,7 @@ def main():
     except Exception as e:
         logger.error(f"❌ Botda xatolik yuz berdi: {e}")
         # Xatolik yuz berganda qayta ishga tushish
+        import time
         time.sleep(10)
         main()
 
