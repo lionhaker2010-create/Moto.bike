@@ -1,17 +1,15 @@
 import asyncio
 from datetime import datetime
 import os
-from telegram import InputMediaPhoto
+import threading
+import time
+import requests
+from flask import Flask
+from telegram import InputMediaPhoto, ReplyKeyboardMarkup, ReplyKeyboardRemove, Update, InlineKeyboardMarkup, InlineKeyboardButton
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, ConversationHandler, CallbackQueryHandler
+from database import db
 import logging
 from dotenv import load_dotenv
-from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove, Update
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, ConversationHandler
-from database import db
-from telegram import InlineKeyboardMarkup, InlineKeyboardButton
-from telegram.ext import CallbackQueryHandler
-import threading
-import requests
-import time
 
 # .env faylini yuklash
 load_dotenv()
@@ -25,6 +23,31 @@ logger = logging.getLogger(__name__)
 
 # Conversation holatlari
 LANGUAGE, NAME, PHONE, LOCATION, MAIN_MENU, PRODUCT_SELECTED, PAYMENT_CONFIRMATION, WAITING_LOCATION = range(8)
+
+# Flask app
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return "Moto.bike Bot is running! 🏍️"
+
+@app.route('/ping')
+def ping():
+    return "pong"
+
+@app.route('/health')
+def health():
+    return "OK"
+
+def keep_awake():
+    """Botni 2 daqiqada bir uyg'otish"""
+    while True:
+        try:
+            response = requests.get('https://moto-bike.onrender.com/ping', timeout=10)
+            logger.info(f"✅ Ping successful - Status: {response.status_code}")
+        except Exception as e:
+            logger.error(f"❌ Ping failed: {e}")
+        time.sleep(120)  # 2 daqiqa
 
 # Til sozlamalari
 TEXTS = {
@@ -1173,23 +1196,29 @@ ping_thread.start()
 # ==================== MAIN FUNCTION ====================
 
 def main():
+    # Flask server
+    threading.Thread(target=lambda: app.run(host='0.0.0.0', port=8080), daemon=True).start()
+    logger.info("✅ Flask server started")
+    
+    # Keep-alive
+    threading.Thread(target=keep_awake, daemon=True).start()
+    logger.info("✅ Keep-alive started")
+    
     # Bot tokenini olish
     TOKEN = os.getenv('BOT_TOKEN')
     if not TOKEN:
-        logger.error("BOT_TOKEN topilmadi! .env faylini tekshiring.")
+        logger.error("BOT_TOKEN topilmadi!")
         return
     
-    # Bot ilovasini yaratish (Application builder bilan)
+    # Bot ilovasini yaratish
     application = Application.builder().token(TOKEN).build()
     
-    # 1. Avval ADMIN handlerini qo'shamiz
+    # Handlerlarni qo'shish
     from admin import get_admin_handler
     application.add_handler(get_admin_handler())
-    
-    # 2. Callback query handler qo'shamiz
     application.add_handler(CallbackQueryHandler(handle_callback_query))
     
-    # 3. Conversation handler
+    # Conversation handler
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler('start', start)],
         states={
@@ -1225,10 +1254,7 @@ def main():
     
     application.add_handler(conv_handler)
     
-    # Bot ishga tushganda xabar
     logger.info("Bot ishga tushdi!")
-    
-    # Botni ishga tushirish
     application.run_polling()
 
 if __name__ == '__main__':
