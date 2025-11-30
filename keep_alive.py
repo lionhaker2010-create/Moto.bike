@@ -19,17 +19,32 @@ def health():
     return "OK"
 
 def keep_awake():
-    """Botni 1 daqiqada bir uyg'otish"""
+    """Botni 5 daqiqada bir uyg'otish - RENDER UCHUN OPTIMALLASHTIRILGAN"""
     while True:
         try:
-            # ✅ URL ni yangilang (sizning haqiqiy URL)
-            response = requests.get('https://moto-bike-jliv.onrender.com/ping', timeout=10)
-            logger.info(f"✅ Ping successful - Status: {response.status_code}")
+            # BARCHA ENDPOINTLARNI TEKSHIRISH
+            endpoints = [
+                '/', '/ping', '/health', '/status', '/monitoring'
+            ]
             
-            # ✅ Monitoring check qo'shish (agar mavjud bo'lsa)
-            if bot_monitor:
-                bot_monitor.check_bot_health()
-                
+            for endpoint in endpoints:
+                try:
+                    url = f'https://moto-bike-jliv.onrender.com{endpoint}'
+                    response = requests.get(url, timeout=10)
+                    logger.info(f"✅ {endpoint} - Status: {response.status_code}")
+                except Exception as e:
+                    logger.error(f"❌ {endpoint}: {e}")
+            
+            # QO'SHIMCHA: Botning o'zini tekshirish
+            try:
+                bot_status = requests.get('https://moto-bike-jliv.onrender.com/status', timeout=5)
+                if bot_status.status_code == 200:
+                    logger.info("🤖 Bot status: ONLINE")
+            except:
+                logger.warning("⚠️ Bot status check failed")
+                    
         except Exception as e:
-            logger.error(f"❌ Ping failed: {e}")
-        time.sleep(60)  # 1 daqiqa
+            logger.error(f"❌ Keep-alive xatosi: {e}")
+        
+        # 5 DAQIQA - RENDER FREE UCHUN OPTIMAL
+        time.sleep(300)
