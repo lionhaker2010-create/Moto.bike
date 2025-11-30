@@ -1229,8 +1229,9 @@ def main():
         
     except Exception as e:
         logger.error(f"❌ Botda xatolik yuz berdi: {e}")
-        raise
+        # Xatolik yuz berganda qayta ishga tushish
+        time.sleep(10)
+        main()
 
-# Agar to'g'ridan-to'g'ri main.py ni ishga tushirsak
 if __name__ == '__main__':
     main()
