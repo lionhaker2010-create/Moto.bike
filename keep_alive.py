@@ -1,8 +1,8 @@
 from flask import Flask
 import threading
 import time
-import requests
-import os
+import urllib.request
+import urllib.error
 
 app = Flask(__name__)
 
@@ -14,19 +14,14 @@ def home():
 def ping():
     return "pong"
 
-@app.route('/health')
-def health():
-    return {"status": "healthy", "service": "Moto.bike Bot"}
-
 def keep_awake():
-    """Botni 2 daqiqada bir uyg'otish"""
+    """Botni 2 daqiqada bir uyg'otish (requests siz)"""
     while True:
         try:
-            # 3 xil URL ni tekshiramiz
-            requests.get('https://moto-bike.onrender.com/', timeout=5)
-            requests.get('https://moto-bike.onrender.com/ping', timeout=5)
-            requests.get('https://moto-bike.onrender.com/health', timeout=5)
-            print(f"✅ [{time.strftime('%H:%M:%S')}] All pings successful")
+            # urllib yordamida ping qilish
+            with urllib.request.urlopen('https://moto-bike.onrender.com/ping', timeout=10) as response:
+                if response.getcode() == 200:
+                    print(f"✅ [{time.strftime('%H:%M:%S')}] Ping successful")
         except Exception as e:
             print(f"❌ [{time.strftime('%H:%M:%S')}] Ping failed: {e}")
         time.sleep(120)  # 2 daqiqa
