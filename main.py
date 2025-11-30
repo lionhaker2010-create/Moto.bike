@@ -1,16 +1,22 @@
 import asyncio
 from datetime import datetime
+import asyncio
+from datetime import datetime
 import os
-import threading
-import time
-import requests
-from flask import Flask
-from telegram import InputMediaPhoto, ReplyKeyboardMarkup, ReplyKeyboardRemove, Update, InlineKeyboardMarkup, InlineKeyboardButton
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, ConversationHandler, CallbackQueryHandler
-from database import db
+from telegram import InputMediaPhoto
+import asyncio
+from datetime import datetime
+import asyncio
+from datetime import datetime
+import os
+from telegram import InputMediaPhoto
 import logging
 from dotenv import load_dotenv
-from keep_alive import keep_alive, start_background_ping
+from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove, Update
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, ConversationHandler
+from database import db
+from telegram import InlineKeyboardMarkup, InlineKeyboardButton
+from telegram.ext import CallbackQueryHandler
 
 # .env faylini yuklash
 load_dotenv()
@@ -25,142 +31,6 @@ logger = logging.getLogger(__name__)
 # Conversation holatlari
 LANGUAGE, NAME, PHONE, LOCATION, MAIN_MENU, PRODUCT_SELECTED, PAYMENT_CONFIRMATION, WAITING_LOCATION = range(8)
 
-# Flask app
-app = Flask(__name__)
-
-@app.route('/')
-def home():
-    return "Moto.bike Bot is running! 🏍️"
-
-@app.route('/ping')
-def ping():
-    return "pong"
-
-@app.route('/health')
-def health():
-    return "OK"
-    
-@app.route('/status')
-def status():
-    """UptimeRobot monitoring uchun status endpoint"""
-    return {
-        "status": "online",
-        "bot": "running", 
-        "timestamp": datetime.now().isoformat(),
-        "version": "1.0"
-    }, 200
-
-@app.route('/active')
-def active():
-    """Faollikni ko'rsatish uchun maxsus endpoint"""
-    return {
-        "active": True, 
-        "service": "Moto.bike Bot",
-        "timestamp": datetime.now().isoformat(),
-        "uptime": "running"
-    }, 200
-
-@app.route('/wakeup')
-def wakeup():
-    """Uyg'otish uchun endpoint"""
-    return "Bot uyg'on! 🎉", 200
-
-@app.route('/monitoring')
-def monitoring():
-    """Batafsil monitoring ma'lumotlari"""
-    try:
-        # Bot holatini tekshirish
-        import psutil
-        
-        return {
-            "status": "healthy",
-            "bot_uptime": "running",
-            "memory_usage": f"{psutil.Process(os.getpid()).memory_info().rss / 1024 / 1024:.2f} MB",
-            "timestamp": datetime.now().isoformat(),
-            "endpoints": {
-                "main": "/",
-                "health": "/health",
-                "ping": "/ping", 
-                "status": "/status"
-            }
-        }, 200
-    except Exception as e:
-        return {"status": "error", "message": str(e)}, 500
-
-# ✅ FAQAT BITTA KEEP-ALIVE ISHLATAMIZ
-keep_alive()
-print("✅ MotoBot Keep-alive server started!")
-
-# Background ping ni ishga tushirish
-start_background_ping()
-print("✅ MotoBot Auto-ping started!")      
-
-# main.py dagi keep_awake funksiyasini yangilaymiz
-def keep_awake():
-    """Botni 1 daqiqada bir uyg'otish - YANGILANGAN"""
-    while True:
-        try:
-            # BARCHA ENDPOINTLARNI TEKSHIRISH
-            urls = [
-                'https://moto-bike-jliv.onrender.com/',
-                'https://moto-bike-jliv.onrender.com/ping',
-                'https://moto-bike-jliv.onrender.com/health',
-                'https://moto-bike-jliv.onrender.com/status',
-                'https://moto-bike-jliv.onrender.com/monitoring'
-            ]
-            
-            for url in urls:
-                try:
-                    response = requests.get(url, timeout=5)
-                    logger.info(f"✅ {url.split('/')[-1]} - Status: {response.status_code}")
-                except Exception as e:
-                    logger.error(f"❌ {url}: {e}")
-            
-            logger.info("✅ Keep-alive cycle completed")
-            
-        except Exception as e:
-            logger.error(f"❌ Keep-alive xatosi: {e}")
-        
-        # 1 DAQIQA (60 soniya)
-        time.sleep(60)
-
-def smart_keep_alive():
-    """Aqlli keep-alive - turli intervalda turli endpointlar"""
-    counter = 0
-    while True:
-        try:
-            counter += 1
-            
-            # HAR 1-CHI: Asosiy sahifa
-            if counter % 1 == 0:
-                requests.get('https://moto-bike-jliv.onrender.com/', timeout=5)
-                logger.info("✅ Main page ping")
-            
-            # HAR 2-CHI: Ping
-            if counter % 2 == 0:
-                requests.get('https://moto-bike-jliv.onrender.com/ping', timeout=5)
-                logger.info("✅ Ping endpoint")
-            
-            # HAR 3-CHI: Status
-            if counter % 3 == 0:
-                requests.get('https://moto-bike-jliv.onrender.com/status', timeout=5)
-                logger.info("✅ Status check")
-            
-            # HAR 6-CHI: Batafsil monitoring
-            if counter % 6 == 0:
-                requests.get('https://moto-bike-jliv.onrender.com/monitoring', timeout=5)
-                logger.info("✅ Full monitoring")
-            
-            # Counter ni qayta nol qilish
-            if counter >= 6:
-                counter = 0
-                
-        except Exception as e:
-            logger.error(f"❌ Smart keep-alive: {e}")
-        
-        # HAR 60 SONIYADA BIR
-        time.sleep(60)        
-        
 # Til sozlamalari
 TEXTS = {
     'uz': {
@@ -277,17 +147,19 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     user_id = user.id
     
-    # Avval admin tekshirish
+    # 1. Avval "labbey" deb javob beramiz
+    await update.message.reply_text("labbey")
+    
+    # 2. Keyin admin tekshirish
     try:
         from admin import is_admin
         if is_admin(user_id):
-            # Admin bo'lsa, admin panelga yo'naltiramiz
             from admin import admin_start
             return await admin_start(update, context)
     except Exception as e:
         logger.error(f"Admin tekshirishda xatolik: {e}")
     
-    # Foydalanuvchi bloklanganligini tekshirish
+    # 3. Foydalanuvchi bloklanganligini tekshirish
     user_data = db.get_user(user_id)
     if user_data and len(user_data) >= 8 and user_data[7]:  # blocked maydoni
         await update.message.reply_text(
@@ -298,6 +170,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=ReplyKeyboardRemove()
         )
         return ConversationHandler.END
+    
+    # ... qolgan kod o'zgarmaydi
     
     # Oddiy foydalanuvchi uchun ro'yxatdan o'tish jarayoni
     db.add_user(user_id, user.first_name)
@@ -318,38 +192,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=get_language_keyboard()
         )
         return LANGUAGE
-        
-# start funksiyasidan keyin qo'shamiz
-async def send_new_user_notification(context: ContextTypes.DEFAULT_TYPE, user_id, first_name):
-    """Yangi foydalanuvchi haqida admin ga xabar yuborish"""
-    try:
-        admin_id = os.getenv('ADMIN_ID')
-        if not admin_id:
-            logger.error("ADMIN_ID topilmadi!")
-            return
-        
-        # Foydalanuvchi ma'lumotlarini olish
-        user_data = db.get_user(user_id)
-        registration_time = user_data[6] if user_data and len(user_data) > 6 else "Noma'lum"
-        
-        message = (
-            f"👤 **YANGI FOYDALANUVCHI RO'YXATDAN O'TDI!**\n\n"
-            f"🆔 **ID:** `{user_id}`\n"
-            f"👤 **Ism:** {first_name}\n"
-            f"📅 **Ro'yxatdan o'tgan vaqt:** {registration_time}\n"
-            f"👥 **Jami foydalanuvchilar:** {len(db.get_all_users())} ta\n\n"
-            f"🎉 Tabriklaymiz! Yangi mijoz qo'shildi!"
-        )
-        
-        await context.bot.send_message(
-            chat_id=admin_id,
-            text=message,
-            parse_mode='Markdown'
-        )
-        logger.info(f"Yangi foydalanuvchi haqida admin ga xabar yuborildi: {user_id}")
-        
-    except Exception as e:
-        logger.error(f"Admin ga xabar yuborishda xatolik: {e}")        
 
 # Tilni tanlash - YANGILANDI
 async def choose_language(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -414,7 +256,6 @@ async def get_phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # Joylashuv qabul qilish
 async def get_location(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
-    first_name = update.effective_user.first_name
     
     if update.message.location:
         location = f"{update.message.location.latitude}, {update.message.location.longitude}"
@@ -438,10 +279,6 @@ async def get_location(update: Update, context: ContextTypes.DEFAULT_TYPE):
         get_text(user_id, 'registration_success'),
         reply_markup=get_main_menu_keyboard(user_id)
     )
-    
-    # ✅ YANGI QO'SHILGAN QISM: Admin ga xabar yuborish
-    await send_new_user_notification(context, user_id, first_name)
-    
     return MAIN_MENU
 
 # Asosiy menyu
@@ -1325,44 +1162,28 @@ def get_pending_payments():
         logger.error(f"Kutayotgan to'lovlarni olishda xatolik: {e}")
         return []
     finally:
-        conn.close()
-
-def background_ping():
-    """Fon da botni uyg'otish"""
-    while True:
-        try:
-            requests.get('https://moto-bike.onrender.com/', timeout=5)
-            print(f"🔄 [{time.strftime('%H:%M:%S')}] Background ping sent")
-        except:
-            print(f"⚠️ [{time.strftime('%H:%M:%S')}] Background ping failed")
-        time.sleep(300)  # 5 daqiqa
-
-# Bot ishga tushganda background ping ni boshlash
-ping_thread = threading.Thread(target=background_ping)
-ping_thread.daemon = True
-ping_thread.start()        
+        conn.close()    
     
 # ==================== MAIN FUNCTION ====================
 
 def main():
-    # Flask server
-    threading.Thread(target=lambda: app.run(host='0.0.0.0', port=8080), daemon=True).start()
-    logger.info("✅ Flask server started")
-    
-    # Keep-alive
-    threading.Thread(target=keep_awake, daemon=True).start()
-    logger.info("✅ Keep-alive started")
-    
     # Bot tokenini olish
     TOKEN = os.getenv('BOT_TOKEN')
     if not TOKEN:
-        logger.error("BOT_TOKEN topilmadi!")
+        logger.error("BOT_TOKEN topilmadi! .env faylini tekshiring.")
         return
     
-    # ✅ TO'G'RI: Hech qanday ortiqcha bo'sh joysiz
+    # Bot ilovasini yaratish
     application = Application.builder().token(TOKEN).build()
     
-    # Conversation handler
+    # 1. Avval ADMIN handlerini qo'shamiz
+    from admin import get_admin_handler
+    application.add_handler(get_admin_handler())
+    
+    # 2. Callback query handler qo'shamiz (YANGI)
+    application.add_handler(CallbackQueryHandler(handle_callback_query))
+    
+    # 3. Conversation handler
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler('start', start)],
         states={
@@ -1396,20 +1217,34 @@ def main():
         allow_reentry=True
     )
     
-    # Handlerlarni qo'shish
-    from admin import get_admin_handler
-    application.add_handler(get_admin_handler())
-    application.add_handler(CallbackQueryHandler(handle_callback_query))
     application.add_handler(conv_handler)
     
+    # Bot ishga tushganda xabar
     logger.info("Bot ishga tushdi!")
     
-    try:
-        application.run_polling()
-    except Exception as e:
-        logger.error(f"Bot ishga tushirishda xatolik: {e}")
-        time.sleep(10)
-        main()
+    # Botni ishga tushirish
+    application.run_polling()
 
 if __name__ == '__main__':
     main()
+    
+# ==================== BOTNI DOIM ISHLAB TURISHI ====================
+
+def run_bot():
+    """Botni ishga tushirish va qayta ishga tushirish"""
+    while True:
+        try:
+            logger.info("🤖 Bot ishga tushmoqda...")
+            main()
+        except Exception as e:
+            logger.error(f"❌ Botda xatolik: {e}")
+            logger.info("🔄 Bot 10 soniyadan keyin qayta ishga tushadi...")
+            time.sleep(10)
+
+if __name__ == '__main__':
+    # Keep-alive serverni ishga tushirish
+    from keep_alive import keep_alive
+    keep_alive()
+    
+    # Botni ishga tushirish
+    run_bot()    

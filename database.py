@@ -48,7 +48,7 @@ class Database:
                 )
             ''')
             
-            # Buyurtmalar jadvali
+            # Buyurtmalar jadvali - YANGILANDI
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS orders (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -57,13 +57,13 @@ class Database:
                     quantity INTEGER,
                     order_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     status TEXT DEFAULT 'pending',
-                    location TEXT,
+                    location TEXT,  # YANGI: Joylashuv ma'lumotlari
                     FOREIGN KEY (user_id) REFERENCES users (user_id),
                     FOREIGN KEY (product_id) REFERENCES products (id)
                 )
             ''')
             
-            # To'lovlar jadvali
+            # To'lovlar jadvali - YANGILANDI
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS payments (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
