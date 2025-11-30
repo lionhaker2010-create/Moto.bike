@@ -3,6 +3,12 @@ from flask import Flask
 import threading
 import time
 import requests
+import logging
+from datetime import datetime
+
+# Log qilishni sozlash
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
@@ -18,33 +24,69 @@ def ping():
 def health():
     return "OK"
 
+@app.route('/status')
+def status():
+    """UptimeRobot monitoring uchun status endpoint"""
+    return {
+        "status": "online",
+        "bot": "running", 
+        "timestamp": datetime.now().isoformat(),
+        "version": "1.0"
+    }, 200
+
+@app.route('/keep-alive')
+def keep_alive_endpoint():
+    """Maxsus keep-alive endpoint"""
+    return {"alive": True, "timestamp": datetime.now().isoformat()}, 200
+
+@app.route('/awake')
+def awake():
+    """Uyg'onish uchun"""
+    return "🔄 Bot uyg'on!", 200
+
 def keep_awake():
-    """Botni 5 daqiqada bir uyg'otish - RENDER UCHUN OPTIMALLASHTIRILGAN"""
+    """1 daqiqa interval - OXIRGI URINISH"""
     while True:
         try:
-            # BARCHA ENDPOINTLARNI TEKSHIRISH
-            endpoints = [
-                '/', '/ping', '/health', '/status', '/monitoring'
+            # BARCHA ASOSIY ENDPOINTLARNI TEKSHIRISH
+            urls = [
+                'https://moto-bike-jliv.onrender.com/',
+                'https://moto-bike-jliv.onrender.com/ping',
+                'https://moto-bike-jliv.onrender.com/health',
+                'https://moto-bike-jliv.onrender.com/status',
+                'https://moto-bike-jliv.onrender.com/keep-alive',
+                'https://moto-bike-jliv.onrender.com/awake'
             ]
             
-            for endpoint in endpoints:
+            for url in urls:
                 try:
-                    url = f'https://moto-bike-jliv.onrender.com{endpoint}'
-                    response = requests.get(url, timeout=10)
-                    logger.info(f"✅ {endpoint} - Status: {response.status_code}")
+                    response = requests.get(url, timeout=5)
+                    logger.info(f"✅ {url.split('/')[-1]} - Status: {response.status_code}")
                 except Exception as e:
-                    logger.error(f"❌ {endpoint}: {e}")
+                    logger.error(f"❌ {url}: {e}")
             
-            # QO'SHIMCHA: Botning o'zini tekshirish
-            try:
-                bot_status = requests.get('https://moto-bike-jliv.onrender.com/status', timeout=5)
-                if bot_status.status_code == 200:
-                    logger.info("🤖 Bot status: ONLINE")
-            except:
-                logger.warning("⚠️ Bot status check failed")
-                    
+            logger.info("✅ Keep-alive cycle completed")
+            
         except Exception as e:
             logger.error(f"❌ Keep-alive xatosi: {e}")
         
-        # 5 DAQIQA - RENDER FREE UCHUN OPTIMAL
-        time.sleep(300)
+        # 1 DAQIQA (60 soniya) - MINIMUM
+        time.sleep(60)
+
+def run_flask():
+    app.run(host='0.0.0.0', port=8080)
+
+if __name__ == '__main__':
+    print("🚀 Starting keep-alive service...")
+    
+    # Flask server
+    threading.Thread(target=run_flask, daemon=True).start()
+    print("✅ Flask server started")
+    
+    # Keep-alive
+    threading.Thread(target=keep_awake, daemon=True).start()
+    print("✅ Keep-alive started")
+    
+    # Cheksiz tsikla
+    while True:
+        time.sleep(60)
