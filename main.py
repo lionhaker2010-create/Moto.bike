@@ -1255,7 +1255,14 @@ def main():
     application.add_handler(conv_handler)
     
     logger.info("Bot ishga tushdi!")
-    application.run_polling()
+    
+    try:
+        application.run_polling()
+    except Exception as e:
+        logger.error(f"Bot ishga tushirishda xatolik: {e}")
+        # Xatolik bo'lsa, 10 soniyadan keyin qayta urinish
+        time.sleep(10)
+        main()  # Qayta ishga tushirish
 
 if __name__ == '__main__':
     main()

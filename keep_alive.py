@@ -22,10 +22,10 @@ def keep_awake():
     """Botni 2 daqiqada bir uyg'otish"""
     while True:
         try:
-            # Asosiy sahifani tekshiramiz
+            # Asosiy sahifani tekshirish
             response = requests.get('https://moto-bike.onrender.com/', timeout=10)
             if response.status_code == 200:
-                print(f"✅ [{time.strftime('%H:%M:%S')}] Ping successful")
+                print(f"✅ [{time.strftime('%H:%M:%S')}] Ping successful - Status: {response.status_code}")
             else:
                 print(f"⚠️ [{time.strftime('%H:%M:%S')}] Ping status: {response.status_code}")
         except Exception as e:
@@ -36,19 +36,19 @@ def run_flask():
     app.run(host='0.0.0.0', port=8080)
 
 if __name__ == '__main__':
-    print("🚀 Starting Moto.bike Bot...")
+    print("🚀 Starting Flask server and keep-alive...")
     
-    # Flask server
+    # Faqat Flask server
     threading.Thread(target=run_flask, daemon=True).start()
     print("✅ Flask server started")
     
-    # Self-ping
+    # Keep-alive
     threading.Thread(target=keep_awake, daemon=True).start()
     print("✅ Keep-alive started")
     
-    # Botni ishga tushirish
-    try:
-        from main import main
-        main()
-    except Exception as e:
-        print(f"❌ Bot failed to start: {e}")
+    # Botni ishga TUSHIRMAYMIZ!
+    print("⚠️ Bot ishga tushirilmaydi - faqat Flask server ishlaydi")
+    
+    # Cheksiz tsikla
+    while True:
+        time.sleep(60)
