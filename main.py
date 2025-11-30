@@ -91,38 +91,34 @@ def monitoring():
     except Exception as e:
         return {"status": "error", "message": str(e)}, 500    
 
+# main.py dagi keep_awake funksiyasini yangilaymiz
 def keep_awake():
-    """Botni 2-3 daqiqada bir uyg'otish - RENDER UCHUN OPTIMAL"""
+    """Botni 1 daqiqada bir uyg'otish - YANGILANGAN"""
     while True:
         try:
-            # BIR NECHTA ENDPOINTLARNI TEKSHIRISH
+            # BARCHA ENDPOINTLARNI TEKSHIRISH
             urls = [
                 'https://moto-bike-jliv.onrender.com/',
-                'https://moto-bike-jliv.onrender.com/ping', 
+                'https://moto-bike-jliv.onrender.com/ping',
                 'https://moto-bike-jliv.onrender.com/health',
-                'https://moto-bike-jliv.onrender.com/status'
+                'https://moto-bike-jliv.onrender.com/status',
+                'https://moto-bike-jliv.onrender.com/monitoring'
             ]
             
             for url in urls:
                 try:
-                    response = requests.get(url, timeout=8)
+                    response = requests.get(url, timeout=5)
                     logger.info(f"✅ {url.split('/')[-1]} - Status: {response.status_code}")
                 except Exception as e:
                     logger.error(f"❌ {url}: {e}")
             
-            # QO'SHIMCHA: Botning asosiy sahifasini tekshirish
-            try:
-                main_response = requests.get('https://moto-bike-jliv.onrender.com/', timeout=10)
-                if main_response.status_code == 200:
-                    logger.info("🌐 Asosiy sahifa muvaffaqiyatli yuklandi")
-            except Exception as e:
-                logger.error(f"❌ Asosiy sahifa: {e}")
-                    
+            logger.info("✅ Keep-alive cycle completed")
+            
         except Exception as e:
             logger.error(f"❌ Keep-alive xatosi: {e}")
         
-        # 2.5 DAQIQA (150 soniya) - RENDER UCHUN ENG OPTIMAL
-        time.sleep(150)
+        # 1 DAQIQA (60 soniya)
+        time.sleep(60)
 
 def smart_keep_alive():
     """Aqlli keep-alive - turli intervalda turli endpointlar"""
