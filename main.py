@@ -1,5 +1,5 @@
 import asyncio
-from datetime import datetime
+from datetime import datetime  # ✅ FAQAT BITTA
 import os
 import threading
 import time
@@ -10,6 +10,13 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters, C
 from database import db
 import logging
 from dotenv import load_dotenv
+
+# main.py boshida
+try:
+    from monitoring import bot_monitor
+except ImportError:
+    # Agar monitoring yo'q bo'lsa
+    bot_monitor = None
 
 # .env faylini yuklash
 load_dotenv()
@@ -38,6 +45,38 @@ def ping():
 @app.route('/health')
 def health():
     return "OK"
+    
+@app.route('/status')
+def status():
+    """UptimeRobot monitoring uchun status endpoint"""
+    return {
+        "status": "online",
+        "bot": "running", 
+        "timestamp": datetime.now().isoformat(),
+        "version": "1.0"
+    }, 200
+
+@app.route('/monitoring')
+def monitoring():
+    """Batafsil monitoring ma'lumotlari"""
+    try:
+        # Bot holatini tekshirish
+        import psutil
+        
+        return {
+            "status": "healthy",
+            "bot_uptime": "running",
+            "memory_usage": f"{psutil.Process(os.getpid()).memory_info().rss / 1024 / 1024:.2f} MB",
+            "timestamp": datetime.now().isoformat(),
+            "endpoints": {
+                "main": "/",
+                "health": "/health",
+                "ping": "/ping", 
+                "status": "/status"
+            }
+        }, 200
+    except Exception as e:
+        return {"status": "error", "message": str(e)}, 500    
 
 def keep_awake():
     """Botni 2 daqiqada bir uyg'otish"""
@@ -47,7 +86,7 @@ def keep_awake():
             logger.info(f"✅ Ping successful - Status: {response.status_code}")
         except Exception as e:
             logger.error(f"❌ Ping failed: {e}")
-        time.sleep(120)  # 2 daqiqa
+        time.sleep(60)  # 1 daqiqa
 
 # Til sozlamalari
 TEXTS = {

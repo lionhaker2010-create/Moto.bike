@@ -1,32 +1,35 @@
-# main() funksiyasini yangilang
-def main():
-    # Flask server
-    threading.Thread(target=lambda: app.run(host='0.0.0.0', port=8080), daemon=True).start()
-    logger.info("✅ Flask server started")
-    
-    # Keep-alive - TEZLASHTIRDIK
-    threading.Thread(target=keep_awake, daemon=True).start()
-    logger.info("✅ Keep-alive started")
-    
-    TOKEN = os.getenv('BOT_TOKEN')
-    if not TOKEN:
-        logger.error("BOT_TOKEN topilmadi!")
-        return
-    
-    application = Application.builder().token(TOKEN).build()
-    
-    # Handlerlarni qo'shish
-    from admin import get_admin_handler
-    application.add_handler(get_admin_handler())
-    application.add_handler(CallbackQueryHandler(handle_callback_query))
-    application.add_handler(conv_handler)
-    
-    logger.info("Bot ishga tushdi!")
-    
-    # ✅ YANGILANGAN POLLING
-    application.run_polling(
-        poll_interval=1.0,
-        timeout=10,
-        drop_pending_updates=True,
-        allowed_updates=['message', 'callback_query']
-    )
+# keep_alive.py - FAQRAT keep-alive uchun
+from flask import Flask
+import threading
+import time
+import requests
+
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return "Moto.bike Bot is running! 🏍️"
+
+@app.route('/ping')
+def ping():
+    return "pong"
+
+@app.route('/health')
+def health():
+    return "OK"
+
+def keep_awake():
+    """Botni 1 daqiqada bir uyg'otish"""
+    while True:
+        try:
+            # ✅ URL ni yangilang (sizning haqiqiy URL)
+            response = requests.get('https://moto-bike-jliv.onrender.com/ping', timeout=10)
+            logger.info(f"✅ Ping successful - Status: {response.status_code}")
+            
+            # ✅ Monitoring check qo'shish (agar mavjud bo'lsa)
+            if bot_monitor:
+                bot_monitor.check_bot_health()
+                
+        except Exception as e:
+            logger.error(f"❌ Ping failed: {e}")
+        time.sleep(60)  # 1 daqiqa
