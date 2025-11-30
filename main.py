@@ -1296,33 +1296,11 @@ def main():
     if not TOKEN:
         logger.error("BOT_TOKEN topilmadi!")
         return
-     application = Application.builder().token(TOKEN).build()
     
-    # Handlerlarni qo'shish
-    application.add_handler(get_admin_handler())
-    application.add_handler(CallbackQueryHandler(handle_callback_query))
-    application.add_handler(conv_handler)
-    
-    logger.info("Bot ishga tushdi!")
-    
-    # ✅ OPTIMALLASHTIRILGAN POLLING
-    application.run_polling(
-        poll_interval=1.0,           # 1 soniya
-        timeout=20,                  # 20 soniya timeout
-        drop_pending_updates=True,   # Eski updatelarni o'chirish
-        allowed_updates=['message', 'callback_query', 'chat_member'],
-        close_loop=False
-    )
-    
-    # Bot ilovasini yaratish
+    # ✅ FAQAT BIR MARTA APPLICATION YARATAMIZ
     application = Application.builder().token(TOKEN).build()
     
-    # Handlerlarni qo'shish
-    from admin import get_admin_handler
-    application.add_handler(get_admin_handler())
-    application.add_handler(CallbackQueryHandler(handle_callback_query))
-    
-    # Conversation handler
+    # Conversation handler ni AVVAL YARATAMIZ
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler('start', start)],
         states={
@@ -1356,12 +1334,23 @@ def main():
         allow_reentry=True
     )
     
+    # ✅ HANDLERLARNI FAQAT BIR MARTA QO'SHAMIZ
+    from admin import get_admin_handler
+    application.add_handler(get_admin_handler())
+    application.add_handler(CallbackQueryHandler(handle_callback_query))
     application.add_handler(conv_handler)
     
     logger.info("Bot ishga tushdi!")
     
     try:
-        application.run_polling()
+        # ✅ OPTIMALLASHTIRILGAN POLLING
+        application.run_polling(
+            poll_interval=1.0,           # 1 soniya
+            timeout=20,                  # 20 soniya timeout
+            drop_pending_updates=True,   # Eski updatelarni o'chirish
+            allowed_updates=['message', 'callback_query', 'chat_member'],
+            close_loop=False
+        )
     except Exception as e:
         logger.error(f"Bot ishga tushirishda xatolik: {e}")
         # Xatolik bo'lsa, 10 soniyadan keyin qayta urinish
