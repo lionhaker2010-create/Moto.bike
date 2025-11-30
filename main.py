@@ -1164,14 +1164,14 @@ def get_pending_payments():
     finally:
         conn.close()    
     
-# ==================== BOTNI ISHGA TUSHIRISH ====================
+# ==================== ASOSIY FUNKSIYA ====================
 
-def main_bot():
-    """Botni ishga tushirish"""
+def main():
+    """Asosiy bot funksiyasi"""
     # Bot tokenini olish
     TOKEN = os.getenv('BOT_TOKEN')
     if not TOKEN:
-        logger.error("BOT_TOKEN topilmadi! .env faylini tekshiring.")
+        logger.error("❌ BOT_TOKEN topilmadi! .env faylini tekshiring.")
         return
     
     try:
@@ -1231,25 +1231,6 @@ def main_bot():
         logger.error(f"❌ Botda xatolik yuz berdi: {e}")
         raise
 
-def run_bot():
-    """Botni ishga tushirish va qayta ishga tushirish"""
-    while True:
-        try:
-            logger.info("🤖 Bot ishga tushmoqda...")
-            main_bot()
-        except Exception as e:
-            logger.error(f"❌ Botda xatolik: {e}")
-            logger.info("🔄 Bot 10 soniyadan keyin qayta ishga tushadi...")
-            time.sleep(10)
-
+# Agar to'g'ridan-to'g'ri main.py ni ishga tushirsak
 if __name__ == '__main__':
-    # Keep-alive serverni ishga tushirish
-    try:
-        from keep_alive import keep_alive
-        keep_alive()
-        logger.info("✅ Keep-alive server ishga tushdi")
-    except Exception as e:
-        logger.error(f"❌ Keep-alive server ishga tushmadi: {e}")
-    
-    # Botni ishga tushirish
-    run_bot()
+    main()

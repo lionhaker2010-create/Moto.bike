@@ -1,5 +1,6 @@
 import sqlite3
 import logging
+import os
 
 # Log qilishni sozlash
 logging.basicConfig(level=logging.INFO)
@@ -12,10 +13,10 @@ class Database:
     
     def _get_connection(self):
         """Connection olish"""
-        return sqlite3.connect(self.db_name)
+        return sqlite3.connect(self.db_name, check_same_thread=False)
     
     def init_db(self):
-        """Ma'lumotlar bazasini yaratish"""
+        """Ma'lumotlar bazasini yaratish - SQL sintaksis xatolarini to'g'rilaymiz"""
         try:
             conn = self._get_connection()
             cursor = conn.cursor()
@@ -48,22 +49,22 @@ class Database:
                 )
             ''')
             
-            # Buyurtmalar jadvali - YANGILANDI
+            # Buyurtmalar jadvali
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS orders (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     user_id INTEGER,
                     product_id INTEGER,
-                    quantity INTEGER,
+                    quantity INTEGER DEFAULT 1,
                     order_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     status TEXT DEFAULT 'pending',
-                    location TEXT,  # YANGI: Joylashuv ma'lumotlari
+                    location TEXT,
                     FOREIGN KEY (user_id) REFERENCES users (user_id),
                     FOREIGN KEY (product_id) REFERENCES products (id)
                 )
             ''')
             
-            # To'lovlar jadvali - YANGILANDI
+            # To'lovlar jadvali
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS payments (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -77,25 +78,21 @@ class Database:
             ''')
             
             # Jadval mavjudligini tekshirish va yangi ustun qo'shish
-            try:
-                cursor.execute("SELECT blocked FROM users LIMIT 1")
-            except sqlite3.OperationalError:
-                cursor.execute("ALTER TABLE users ADD COLUMN blocked BOOLEAN DEFAULT FALSE")
-                logger.info("blocked ustuni qo'shildi")
+            tables_to_check = [
+                ('users', 'blocked', 'ALTER TABLE users ADD COLUMN blocked BOOLEAN DEFAULT FALSE'),
+                ('payments', 'receipt_photo', 'ALTER TABLE payments ADD COLUMN receipt_photo TEXT'),
+                ('orders', 'location', 'ALTER TABLE orders ADD COLUMN location TEXT')
+            ]
             
-            # To'lovlar jadvali uchun receipt_photo ustunini tekshirish
-            try:
-                cursor.execute("SELECT receipt_photo FROM payments LIMIT 1")
-            except sqlite3.OperationalError:
-                cursor.execute("ALTER TABLE payments ADD COLUMN receipt_photo TEXT")
-                logger.info("receipt_photo ustuni qo'shildi")
-            
-            # Buyurtmalar jadvali uchun location ustunini tekshirish
-            try:
-                cursor.execute("SELECT location FROM orders LIMIT 1")
-            except sqlite3.OperationalError:
-                cursor.execute("ALTER TABLE orders ADD COLUMN location TEXT")
-                logger.info("location ustuni orders jadvaliga qo'shildi")
+            for table_name, column_name, alter_query in tables_to_check:
+                try:
+                    cursor.execute(f"SELECT {column_name} FROM {table_name} LIMIT 1")
+                except sqlite3.OperationalError:
+                    try:
+                        cursor.execute(alter_query)
+                        logger.info(f"{column_name} ustuni {table_name} jadvaliga qo'shildi")
+                    except Exception as alter_error:
+                        logger.warning(f"{column_name} ustunini qo'shishda xatolik: {alter_error}")
             
             conn.commit()
             logger.info("Ma'lumotlar bazasi muvaffaqiyatli yaratildi/yangilandi")
@@ -105,6 +102,7 @@ class Database:
         finally:
             conn.close()
     
+    # QOLGAN FUNKSIYALAR O'ZGARMASDAN QOLADI
     def add_user(self, user_id, first_name):
         """Yangi foydalanuvchi qo'shish"""
         try:
@@ -154,7 +152,7 @@ class Database:
     def is_registered(self, user_id):
         """Foydalanuvchi ro'yxatdan o'tganmi tekshirish"""
         user = self.get_user(user_id)
-        return user and user[5]  # registered maydoni (5-o'rinda)
+        return user and user[5] if user else False
     
     def block_user(self, user_id):
         """Foydalanuvchini bloklash"""
@@ -218,26 +216,6 @@ class Database:
         finally:
             conn.close()
     
-    def get_orders(self):
-        """Buyurtmalarni olish"""
-        try:
-            conn = self._get_connection()
-            cursor = conn.cursor()
-            cursor.execute('''
-                SELECT o.id, u.first_name, p.name, o.order_date, o.status
-                FROM orders o 
-                LEFT JOIN users u ON o.user_id = u.user_id 
-                LEFT JOIN products p ON o.product_id = p.id 
-                ORDER BY o.order_date DESC
-            ''')
-            orders = cursor.fetchall()
-            return orders
-        except Exception as e:
-            logger.error(f"Buyurtmalarni olishda xatolik: {e}")
-            return []
-        finally:
-            conn.close()
-            
     def get_products_by_category(self, category, subcategory=None):
         """Kategoriya bo'yicha mahsulotlarni olish"""
         try:
@@ -281,24 +259,6 @@ class Database:
         finally:
             conn.close()
 
-    def debug_products(self):
-        """Mahsulotlarni tekshirish"""
-        try:
-            conn = self._get_connection()
-            cursor = conn.cursor()
-            cursor.execute('SELECT id, name, image FROM products')
-            products = cursor.fetchall()
-            
-            print("=== MAHSULOTLAR DEBUG ===")
-            for product in products:
-                print(f"ID: {product[0]}, Name: {product[1]}, Image: {product[2]}")
-            
-            return products
-        except Exception as e:
-            print(f"Debug xatosi: {e}")
-        finally:
-            conn.close()
-            
     def get_all_products(self):
         """Barcha mahsulotlarni olish"""
         try:
@@ -333,7 +293,7 @@ class Database:
             conn.close()
 
     def get_products_by_category_only(self, category):
-        """Faqat kategoriya bo'yicha mahsulotlarni olish (subcategory siz)"""
+        """Faqat kategoriya bo'yicha mahsulotlarni olish"""
         try:
             conn = self._get_connection()
             cursor = conn.cursor()
@@ -351,8 +311,6 @@ class Database:
         finally:
             conn.close()
             
-    # ============ YANGI FUNKSIYALAR ============
-
     def add_order(self, user_id, product_id, quantity=1, status='pending', location=None):
         """Yangi buyurtma qo'shish"""
         try:
@@ -364,7 +322,7 @@ class Database:
             ''', (user_id, product_id, quantity, status, location))
             conn.commit()
             order_id = cursor.lastrowid
-            logger.info(f"Yangi buyurtma qo'shildi: user_id={user_id}, product_id={product_id}, order_id={order_id}, location={location}")
+            logger.info(f"Yangi buyurtma qo'shildi: user_id={user_id}, product_id={product_id}, order_id={order_id}")
             return order_id
         except Exception as e:
             logger.error(f"Buyurtma qo'shishda xatolik: {e}")
@@ -372,7 +330,6 @@ class Database:
         finally:
             conn.close()
 
-    # database.py faylida add_payment funksiyasiga debug qo'shing
     def add_payment(self, user_id, amount, status='pending', receipt_photo=None):
         """Yangi to'lov qo'shish"""
         try:
@@ -384,7 +341,7 @@ class Database:
             ''', (user_id, amount, status, receipt_photo))
             conn.commit()
             payment_id = cursor.lastrowid
-            logger.info(f"Yangi to'lov qo'shildi: user_id={user_id}, amount={amount}, payment_id={payment_id}, receipt_photo={receipt_photo}")
+            logger.info(f"Yangi to'lov qo'shildi: user_id={user_id}, amount={amount}, payment_id={payment_id}")
             return payment_id
         except Exception as e:
             logger.error(f"To'lov qo'shishda xatolik: {e}")
@@ -470,13 +427,6 @@ class Database:
             cursor = conn.cursor()
             cursor.execute('SELECT * FROM payments WHERE id = ?', (payment_id,))
             payment = cursor.fetchone()
-            
-            # Debug uchun
-            if payment:
-                logger.info(f"To'lov topildi: ID={payment[0]}, User_ID={payment[1]}, Amount={payment[2]}")
-            else:
-                logger.warning(f"To'lov topilmadi: ID={payment_id}")
-                
             return payment
         except Exception as e:
             logger.error(f"To'lovni olishda xatolik: {e}")
@@ -489,13 +439,7 @@ class Database:
         try:
             conn = self._get_connection()
             cursor = conn.cursor()
-            cursor.execute('''
-                SELECT o.*, u.first_name, u.phone, p.name, p.price 
-                FROM orders o 
-                LEFT JOIN users u ON o.user_id = u.user_id 
-                LEFT JOIN products p ON o.product_id = p.id 
-                WHERE o.id = ?
-            ''', (order_id,))
+            cursor.execute('SELECT * FROM orders WHERE id = ?', (order_id,))
             order = cursor.fetchone()
             return order
         except Exception as e:
