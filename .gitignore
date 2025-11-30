@@ -1,11 +1,8 @@
 .env
-*.pyc
+*.env
+config.py
 __pycache__/
-instance/
-.pytest_cache/
-.coverage
-htmlcov/
-dist/
-build/
-*.egg-info/
+*.pyc
+*.pyo
+*.pyd
 .DS_Store

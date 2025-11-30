@@ -147,19 +147,17 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     user_id = user.id
     
-    # 1. Avval "labbey" deb javob beramiz
-    await update.message.reply_text("labbey")
-    
-    # 2. Keyin admin tekshirish
+    # Avval admin tekshirish
     try:
         from admin import is_admin
         if is_admin(user_id):
+            # Admin bo'lsa, admin panelga yo'naltiramiz
             from admin import admin_start
             return await admin_start(update, context)
     except Exception as e:
         logger.error(f"Admin tekshirishda xatolik: {e}")
     
-    # 3. Foydalanuvchi bloklanganligini tekshirish
+    # Foydalanuvchi bloklanganligini tekshirish
     user_data = db.get_user(user_id)
     if user_data and len(user_data) >= 8 and user_data[7]:  # blocked maydoni
         await update.message.reply_text(
@@ -170,8 +168,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=ReplyKeyboardRemove()
         )
         return ConversationHandler.END
-    
-    # ... qolgan kod o'zgarmaydi
     
     # Oddiy foydalanuvchi uchun ro'yxatdan o'tish jarayoni
     db.add_user(user_id, user.first_name)
@@ -1164,77 +1160,66 @@ def get_pending_payments():
     finally:
         conn.close()    
     
-# ==================== ASOSIY FUNKSIYA ====================
-
-# ==================== ASOSIY FUNKSIYA ====================
+# ==================== MAIN FUNCTION ====================
 
 def main():
-    """Asosiy bot funksiyasi"""
     # Bot tokenini olish
     TOKEN = os.getenv('BOT_TOKEN')
     if not TOKEN:
-        logger.error("❌ BOT_TOKEN topilmadi! .env faylini tekshiring.")
+        logger.error("BOT_TOKEN topilmadi! .env faylini tekshiring.")
         return
     
-    try:
-        # Bot ilovasini yaratish
-        application = Application.builder().token(TOKEN).build()
-        
-        # 1. Avval ADMIN handlerini qo'shamiz
-        from admin import get_admin_handler
-        application.add_handler(get_admin_handler())
-        
-        # 2. Callback query handler qo'shamiz
-        application.add_handler(CallbackQueryHandler(handle_callback_query))
-        
-        # 3. Conversation handler
-        conv_handler = ConversationHandler(
-            entry_points=[CommandHandler('start', start)],
-            states={
-                LANGUAGE: [MessageHandler(filters.TEXT & ~filters.COMMAND, choose_language)],
-                NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_name)],
-                PHONE: [MessageHandler(filters.CONTACT | (filters.TEXT & ~filters.COMMAND), get_phone)],
-                LOCATION: [MessageHandler(filters.LOCATION | (filters.TEXT & ~filters.COMMAND), get_location)],
-                MAIN_MENU: [
-                    MessageHandler(filters.Regex("^(🏍️ MotoBike|🛵 Scooter|⚡ Electric Scooter Arenda)$"), main_menu),
-                    MessageHandler(filters.Regex("^(🛡️ Shlemlar|👕 Moto Kiyimlar|👞 Oyoq kiyimlari|🦵 Oyoq Himoya|🧤 Qo'lqoplar|🎭 Yuz himoya|🔧 MOTO EHTIYOT QISMLAR)$"), motobike_menu),
-                    MessageHandler(filters.Regex("^(⚙️ Sep|🛞 Disca|🦋 Parushka|🛑 Tormoz Ruchkasi|💡 Old Chiroq|🔴 Orqa Chiroq|🪑 O'tirgichlar|🔇 Glushitel|🎛️ Gaz Trosi|🔄 Sep Ruchkasi|⛽ Benzin baki|🔥 Svechalar|⚡ Babinalar|📦 Skores Karobka|🔄 Karburator|🛞 Apornik Disc|🛑 Klotkalar|🎨 Tunning Qismlari|📦 Boshqa Qismlari)$"), parts_menu),
-                    MessageHandler(filters.Regex("^(⛽ Tank|🚀 H Max|⭐ Stell Max|⚔️ Samuray|🐅 Tiger|🔧 Barcha Qismlari)$"), scooter_menu),
-                    MessageHandler(filters.Regex("^(⬅️ Oldingi sahifa|Keyingi sahifa ➡️)$"), handle_pagination),
-                    MessageHandler(filters.Regex("^(💰 To'lov qilish|📦 Buyurtma berish)$"), product_selected),
-                    MessageHandler(filters.Regex("^(🔙 Orqaga)$"), handle_back),
-                    MessageHandler(filters.TEXT & ~filters.COMMAND, main_menu)
-                ],
-                PRODUCT_SELECTED: [
-                    MessageHandler(filters.TEXT & ~filters.COMMAND, product_selected)
-                ],
-                PAYMENT_CONFIRMATION: [
-                    MessageHandler(filters.TEXT & ~filters.COMMAND, payment_confirmation),
-                    MessageHandler(filters.PHOTO, payment_confirmation)
-                ],
-                WAITING_LOCATION: [
-                    MessageHandler(filters.LOCATION, waiting_location),
-                    MessageHandler(filters.TEXT & ~filters.COMMAND, waiting_location)
-                ],
-            },
-            fallbacks=[CommandHandler('start', start)],
-            allow_reentry=True
-        )
-        
-        application.add_handler(conv_handler)
-        
-        # Bot ishga tushganda xabar
-        logger.info("🤖 Bot ishga tushdi va polling ni boshladi!")
-        
-        # Botni ishga tushirish (polling) - Application bilan
-        application.run_polling()
-        
-    except Exception as e:
-        logger.error(f"❌ Botda xatolik yuz berdi: {e}")
-        # Xatolik yuz berganda qayta ishga tushish
-        import time
-        time.sleep(10)
-        main()
+    # Bot ilovasini yaratish
+    application = Application.builder().token(TOKEN).build()
+    
+    # 1. Avval ADMIN handlerini qo'shamiz
+    from admin import get_admin_handler
+    application.add_handler(get_admin_handler())
+    
+    # 2. Callback query handler qo'shamiz (YANGI)
+    application.add_handler(CallbackQueryHandler(handle_callback_query))
+    
+    # 3. Conversation handler
+    conv_handler = ConversationHandler(
+        entry_points=[CommandHandler('start', start)],
+        states={
+            LANGUAGE: [MessageHandler(filters.TEXT & ~filters.COMMAND, choose_language)],
+            NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_name)],
+            PHONE: [MessageHandler(filters.CONTACT | (filters.TEXT & ~filters.COMMAND), get_phone)],
+            LOCATION: [MessageHandler(filters.LOCATION | (filters.TEXT & ~filters.COMMAND), get_location)],
+            MAIN_MENU: [
+                MessageHandler(filters.Regex("^(🏍️ MotoBike|🛵 Scooter|⚡ Electric Scooter Arenda)$"), main_menu),
+                MessageHandler(filters.Regex("^(🛡️ Shlemlar|👕 Moto Kiyimlar|👞 Oyoq kiyimlari|🦵 Oyoq Himoya|🧤 Qo'lqoplar|🎭 Yuz himoya|🔧 MOTO EHTIYOT QISMLAR)$"), motobike_menu),
+                MessageHandler(filters.Regex("^(⚙️ Sep|🛞 Disca|🦋 Parushka|🛑 Tormoz Ruchkasi|💡 Old Chiroq|🔴 Orqa Chiroq|🪑 O'tirgichlar|🔇 Glushitel|🎛️ Gaz Trosi|🔄 Sep Ruchkasi|⛽ Benzin baki|🔥 Svechalar|⚡ Babinalar|📦 Skores Karobka|🔄 Karburator|🛞 Apornik Disc|🛑 Klotkalar|🎨 Tunning Qismlari|📦 Boshqa Qismlari)$"), parts_menu),
+                MessageHandler(filters.Regex("^(⛽ Tank|🚀 H Max|⭐ Stell Max|⚔️ Samuray|🐅 Tiger|🔧 Barcha Qismlari)$"), scooter_menu),
+                MessageHandler(filters.Regex("^(⬅️ Oldingi sahifa|Keyingi sahifa ➡️)$"), handle_pagination),
+                MessageHandler(filters.Regex("^(💰 To'lov qilish|📦 Buyurtma berish)$"), product_selected),
+                MessageHandler(filters.Regex("^(🔙 Orqaga)$"), handle_back),
+                MessageHandler(filters.TEXT & ~filters.COMMAND, main_menu)
+            ],
+            PRODUCT_SELECTED: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, product_selected)
+            ],
+            PAYMENT_CONFIRMATION: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, payment_confirmation),
+                MessageHandler(filters.PHOTO, payment_confirmation)
+            ],
+            WAITING_LOCATION: [
+                MessageHandler(filters.LOCATION, waiting_location),
+                MessageHandler(filters.TEXT & ~filters.COMMAND, waiting_location)
+            ],
+        },
+        fallbacks=[CommandHandler('start', start)],
+        allow_reentry=True
+    )
+    
+    application.add_handler(conv_handler)
+    
+    # Bot ishga tushganda xabar
+    logger.info("Bot ishga tushdi!")
+    
+    # Botni ishga tushirish
+    application.run_polling()
 
 if __name__ == '__main__':
     main()
