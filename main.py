@@ -17,6 +17,10 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters, C
 from database import db
 from telegram import InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import CallbackQueryHandler
+from keep_alive import keep_alive
+
+# Serverni faol saqlash
+keep_alive()
 
 # .env faylini yuklash
 load_dotenv()
@@ -1166,7 +1170,7 @@ def main():
     # Bot tokenini olish
     TOKEN = os.getenv('BOT_TOKEN')
     if not TOKEN:
-        logger.error("BOT_TOKEN topilmadi! .env faylini tekshiring.")
+        logger.error("BOT_TOKEN topilmadi! Environment variable ni tekshiring.")
         return
     
     # Bot ilovasini yaratish
@@ -1219,6 +1223,9 @@ def main():
     logger.info("Bot ishga tushdi!")
     
     # Botni ishga tushirish
+    application.run_polling()
+
+    logger.info("Bot Render serverida ishga tushdi!")
     application.run_polling()
 
 if __name__ == '__main__':

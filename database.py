@@ -1,18 +1,20 @@
 import sqlite3
 import logging
+import os
 
-# Log qilishni sozlash
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class Database:
     def __init__(self, db_name='motobike.db'):
+        # Render uchun absolute path ishlatish
         self.db_name = db_name
         self.init_db()
     
     def _get_connection(self):
-        """Connection olish"""
-        return sqlite3.connect(self.db_name)
+        """Connection olish - Render uchun optimallashtirilgan"""
+        return sqlite3.connect(self.db_name, check_same_thread=False)
+    
+    # ... qolgan kod o'zgarmaydi
     
     def init_db(self):
         """Ma'lumotlar bazasini yaratish"""
