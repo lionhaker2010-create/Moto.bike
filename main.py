@@ -1,13 +1,5 @@
 import asyncio
 from datetime import datetime
-import asyncio
-from datetime import datetime
-import os
-from telegram import InputMediaPhoto
-import asyncio
-from datetime import datetime
-import asyncio
-from datetime import datetime
 import os
 from telegram import InputMediaPhoto
 import logging
@@ -17,6 +9,9 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters, C
 from database import db
 from telegram import InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import CallbackQueryHandler
+import threading
+import requests
+import time
 
 # .env faylini yuklash
 load_dotenv()
@@ -1158,7 +1153,22 @@ def get_pending_payments():
         logger.error(f"Kutayotgan to'lovlarni olishda xatolik: {e}")
         return []
     finally:
-        conn.close()    
+        conn.close()
+
+def background_ping():
+    """Fon da botni uyg'otish"""
+    while True:
+        try:
+            requests.get('https://moto-bike.onrender.com/', timeout=5)
+            print(f"🔄 [{time.strftime('%H:%M:%S')}] Background ping sent")
+        except:
+            print(f"⚠️ [{time.strftime('%H:%M:%S')}] Background ping failed")
+        time.sleep(300)  # 5 daqiqa
+
+# Bot ishga tushganda background ping ni boshlash
+ping_thread = threading.Thread(target=background_ping)
+ping_thread.daemon = True
+ping_thread.start()        
     
 # ==================== MAIN FUNCTION ====================
 
