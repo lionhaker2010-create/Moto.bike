@@ -1,5 +1,5 @@
 import asyncio
-from datetime import datetime  # ✅ FAQAT BITTA
+from datetime import datetime
 import os
 import threading
 import time
@@ -10,14 +10,6 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters, C
 from database import db
 import logging
 from dotenv import load_dotenv
- from admin import get_admin_handler
-
-# main.py boshida
-try:
-    from monitoring import bot_monitor
-except ImportError:
-    # Agar monitoring yo'q bo'lsa
-    bot_monitor = None
 
 # .env faylini yuklash
 load_dotenv()
@@ -56,16 +48,6 @@ def status():
         "timestamp": datetime.now().isoformat(),
         "version": "1.0"
     }, 200
-    
-@app.route('/light-ping')
-def light_ping():
-    """Eng oddiy ping - faqat text"""
-    return "OK"  
-
-@app.route('/fast')
-def fast_ping():
-    """Tez response uchun eng oddiy endpoint"""
-    return "1", 200    
 
 @app.route('/monitoring')
 def monitoring():
@@ -98,6 +80,7 @@ def keep_awake():
         except Exception as e:
             logger.error(f"❌ Ping failed: {e}")
         time.sleep(60)  # 1 daqiqa
+
 
 # Til sozlamalari
 TEXTS = {
@@ -1297,10 +1280,10 @@ def main():
         logger.error("BOT_TOKEN topilmadi!")
         return
     
-    # ✅ FAQAT BIR MARTA APPLICATION YARATAMIZ
+    # ✅ TO'G'RI: Hech qanday ortiqcha bo'sh joysiz
     application = Application.builder().token(TOKEN).build()
     
-    # Conversation handler ni AVVAL YARATAMIZ
+    # Conversation handler
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler('start', start)],
         states={
@@ -1334,7 +1317,7 @@ def main():
         allow_reentry=True
     )
     
-    # ✅ HANDLERLARNI FAQAT BIR MARTA QO'SHAMIZ
+    # Handlerlarni qo'shish
     from admin import get_admin_handler
     application.add_handler(get_admin_handler())
     application.add_handler(CallbackQueryHandler(handle_callback_query))
@@ -1343,19 +1326,11 @@ def main():
     logger.info("Bot ishga tushdi!")
     
     try:
-        # ✅ OPTIMALLASHTIRILGAN POLLING
-        application.run_polling(
-            poll_interval=1.0,           # 1 soniya
-            timeout=20,                  # 20 soniya timeout
-            drop_pending_updates=True,   # Eski updatelarni o'chirish
-            allowed_updates=['message', 'callback_query', 'chat_member'],
-            close_loop=False
-        )
+        application.run_polling()
     except Exception as e:
         logger.error(f"Bot ishga tushirishda xatolik: {e}")
-        # Xatolik bo'lsa, 10 soniyadan keyin qayta urinish
         time.sleep(10)
-        main()  # Qayta ishga tushirish
+        main()
 
 if __name__ == '__main__':
     main()
