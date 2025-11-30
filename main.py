@@ -48,6 +48,26 @@ def status():
         "timestamp": datetime.now().isoformat(),
         "version": "1.0"
     }, 200
+       
+@app.route('/active')
+def active():
+    """Faollikni ko'rsatish uchun maxsus endpoint"""
+    return {"active": True, "timestamp": datetime.now().isoformat()}, 200
+
+@app.route('/wakeup')
+def wakeup():
+    """Uyg'otish uchun endpoint"""
+    return "Bot uyg'on! 🎉", 200    
+
+@app.route('/active')
+def active():
+    """Faollikni ko'rsatish uchun maxsus endpoint"""
+    return {
+        "active": True, 
+        "service": "Moto.bike Bot",
+        "timestamp": datetime.now().isoformat(),
+        "uptime": "running"
+    }, 200
 
 @app.route('/monitoring')
 def monitoring():
@@ -72,16 +92,75 @@ def monitoring():
         return {"status": "error", "message": str(e)}, 500    
 
 def keep_awake():
-    """Botni 2 daqiqada bir uyg'otish"""
+    """Botni 2-3 daqiqada bir uyg'otish - RENDER UCHUN OPTIMAL"""
     while True:
         try:
-            response = requests.get('https://moto-bike.onrender.com/ping', timeout=10)
-            logger.info(f"✅ Ping successful - Status: {response.status_code}")
+            # BIR NECHTA ENDPOINTLARNI TEKSHIRISH
+            urls = [
+                'https://moto-bike-jliv.onrender.com/',
+                'https://moto-bike-jliv.onrender.com/ping', 
+                'https://moto-bike-jliv.onrender.com/health',
+                'https://moto-bike-jliv.onrender.com/status'
+            ]
+            
+            for url in urls:
+                try:
+                    response = requests.get(url, timeout=8)
+                    logger.info(f"✅ {url.split('/')[-1]} - Status: {response.status_code}")
+                except Exception as e:
+                    logger.error(f"❌ {url}: {e}")
+            
+            # QO'SHIMCHA: Botning asosiy sahifasini tekshirish
+            try:
+                main_response = requests.get('https://moto-bike-jliv.onrender.com/', timeout=10)
+                if main_response.status_code == 200:
+                    logger.info("🌐 Asosiy sahifa muvaffaqiyatli yuklandi")
+            except Exception as e:
+                logger.error(f"❌ Asosiy sahifa: {e}")
+                    
         except Exception as e:
-            logger.error(f"❌ Ping failed: {e}")
-        time.sleep(60)  # 1 daqiqa
+            logger.error(f"❌ Keep-alive xatosi: {e}")
+        
+        # 2.5 DAQIQA (150 soniya) - RENDER UCHUN ENG OPTIMAL
+        time.sleep(150)
 
-
+def smart_keep_alive():
+    """Aqlli keep-alive - turli intervalda turli endpointlar"""
+    counter = 0
+    while True:
+        try:
+            counter += 1
+            
+            # HAR 1-CHI: Asosiy sahifa
+            if counter % 1 == 0:
+                requests.get('https://moto-bike-jliv.onrender.com/', timeout=5)
+                logger.info("✅ Main page ping")
+            
+            # HAR 2-CHI: Ping
+            if counter % 2 == 0:
+                requests.get('https://moto-bike-jliv.onrender.com/ping', timeout=5)
+                logger.info("✅ Ping endpoint")
+            
+            # HAR 3-CHI: Status
+            if counter % 3 == 0:
+                requests.get('https://moto-bike-jliv.onrender.com/status', timeout=5)
+                logger.info("✅ Status check")
+            
+            # HAR 6-CHI: Batafsil monitoring
+            if counter % 6 == 0:
+                requests.get('https://moto-bike-jliv.onrender.com/monitoring', timeout=5)
+                logger.info("✅ Full monitoring")
+            
+            # Counter ni qayta nol qilish
+            if counter >= 6:
+                counter = 0
+                
+        except Exception as e:
+            logger.error(f"❌ Smart keep-alive: {e}")
+        
+        # HAR 60 SONIYADA BIR
+        time.sleep(60)        
+        
 # Til sozlamalari
 TEXTS = {
     'uz': {
