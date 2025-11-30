@@ -1166,6 +1166,8 @@ def get_pending_payments():
     
 # ==================== ASOSIY FUNKSIYA ====================
 
+# ==================== ASOSIY FUNKSIYA ====================
+
 def main():
     """Asosiy bot funksiyasi"""
     # Bot tokenini olish
@@ -1224,7 +1226,7 @@ def main():
         # Bot ishga tushganda xabar
         logger.info("🤖 Bot ishga tushdi va polling ni boshladi!")
         
-        # Botni ishga tushirish (polling)
+        # Botni ishga tushirish (polling) - Application bilan
         application.run_polling()
         
     except Exception as e:
