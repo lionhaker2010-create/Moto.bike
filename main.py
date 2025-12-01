@@ -174,6 +174,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     user_id = user.id
     
+    # ✅ USER DATANI TOZALASH
+    context.user_data.clear()
+    
     # Avval admin tekshirish
     try:
         from admin import is_admin
@@ -183,6 +186,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return await admin_start(update, context)
     except Exception as e:
         logger.error(f"Admin tekshirishda xatolik: {e}")
+    
+    # ✅ Foydalanuvchini bazaga qo'shish VA default tilni uz qilish
+    db.add_user(user_id, user.first_name)
+    db.update_user(user_id, language='uz')  # Default til uz
     
     # Foydalanuvchi bloklanganligini tekshirish
     user_data = db.get_user(user_id)
@@ -195,9 +202,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=ReplyKeyboardRemove()
         )
         return ConversationHandler.END
-    
-    # Oddiy foydalanuvchi uchun ro'yxatdan o'tish jarayoni
-    db.add_user(user_id, user.first_name)
     
     # Agar ro'yxatdan o'tgan bo'lsa, to'g'ridan-to'g'ri asosiy menyuga o'tkazish
     if db.is_registered(user_id):
@@ -216,32 +220,33 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return LANGUAGE
 
-# Tilni tanlash - YANGILANDI
+# LANGUAGE funksiyasini o'zgartiramiz:
 async def choose_language(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     user_id = update.effective_user.id
     
-    if "O'zbek" in text:
+    if "O'zbek" in text or "🇺🇿" in text:
         language = 'uz'
-    elif "Русский" in text:
+    elif "Русский" in text or "🇷🇺" in text:
         language = 'ru'
-    elif "English" in text:
+    elif "English" in text or "🇺🇸" in text:
         language = 'en'
     else:
-        await update.message.reply_text(get_text(user_id, 'choose_language'))
-        return LANGUAGE
+        # ✅ DEFAULT TIL UZBEKCHA
+        language = 'uz'
     
-    # Agar ro'yxatdan o'tgan bo'lsa, faqat tilni o'zgartirish
+    # Foydalanuvchi tilini saqlash
+    db.update_user(user_id, language=language)
+    
+    # Agar ro'yxatdan o'tgan bo'lsa
     if db.is_registered(user_id):
-        db.update_user(user_id, language=language)
         await update.message.reply_text(
             get_text(user_id, 'language_changed'),
             reply_markup=get_main_menu_keyboard(user_id)
         )
         return MAIN_MENU
     else:
-        # Ro'yxatdan o'tmagan bo'lsa, ro'yxatdan o'tish jarayonini davom ettirish
-        db.update_user(user_id, language=language)
+        # Ro'yxatdan o'tmagan bo'lsa
         await update.message.reply_text(
             get_text(user_id, 'enter_name'),
             reply_markup=ReplyKeyboardRemove()
