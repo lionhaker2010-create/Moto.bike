@@ -515,7 +515,7 @@ async def motobike_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     text = update.message.text
     
-    # ✅ 1. "Orqaga" ni birinchi tekshirish
+    # 1. "Orqaga" ni tekshirish
     if text == "🔙 Orqaga":
         await update.message.reply_text(
             get_text(user_id, 'main_menu'),
@@ -523,48 +523,28 @@ async def motobike_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return MAIN_MENU
     
-    # ✅ 2. Sahifalash tugmalari
+    # 2. Sahifalash tugmalari
     elif text in ["⬅️ Oldingi sahifa", "Keyingi sahifa ➡️"]:
         return await handle_pagination(update, context)
     
-    # ... qolgan kod ...
+    # 3. Mahsulot kategoriyalari
+    elif text in ["🛡️ Shlemlar", "👕 Moto Kiyimlar", "👞 Oyoq kiyimlari", 
+                  "🦵 Oyoq Himoya", "🧤 Qo'lqoplar", "🎭 Yuz himoya"]:
+        # Sahifalashni boshlash
+        context.user_data['products_page'] = 0
+        result = await show_products(update, context, "🏍️ MotoBike", text)
+        return result  # ✅ show_products qaysi state'ga qaytsa, o'shani qaytarish
     
-    elif "MOTO EHTIYOT QISMLAR" in text:
+    elif text == "🔧 MOTO EHTIYOT QISMLAR":
         await update.message.reply_text(
             "🔧 MOTO EHTIYOT QISMLARI:",
             reply_markup=get_parts_keyboard(user_id)
         )
         return MAIN_MENU
     
-    elif text in ["🛡️ Shlemlar", "👕 Moto Kiyimlar", "👞 Oyoq kiyimlari", 
-                  "🦵 Oyoq Himoya", "🧤 Qo'lqoplar", "🎭 Yuz himoya"]:
-        # Sahifalashni boshlash
-        context.user_data['products_page'] = 0
-        await show_products(update, context, "🏍️ MotoBike", text)
-        return MAIN_MENU
-    
-    elif text in ["⬅️ Oldingi sahifa", "Keyingi sahifa ➡️"]:
-        # Sahifalash
-        page = context.user_data.get('products_page', 0)
-        total_pages = context.user_data.get('total_products_pages', 1)
-        
-        if text == "⬅️ Oldingi sahifa" and page > 0:
-            context.user_data['products_page'] = page - 1
-        elif text == "Keyingi sahifa ➡️" and page < total_pages - 1:
-            context.user_data['products_page'] = page + 1
-        else:
-            # Sahifa chegarasidan chiqib ketish
-            await update.message.reply_text("ℹ️ Boshqa sahifa mavjud emas")
-            return MAIN_MENU
-        
-        category = context.user_data.get('current_category')
-        subcategory = context.user_data.get('current_subcategory')
-        await show_products(update, context, category, subcategory)
-        return MAIN_MENU
-    
     else:
         await update.message.reply_text(
-            f"✅ Siz tanladingiz: {text}\n\nTez orada bu bo'lim ishga tushadi!",
+            f"✅ Siz tanladingiz: {text}",
             reply_markup=get_motobike_keyboard(user_id)
         )
     
@@ -664,30 +644,24 @@ async def handle_pagination(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     text = update.message.text
     
-    # DEBUG
-    print(f"DEBUG handle_pagination: text={text}, user_id={user_id}")
-    print(f"DEBUG: context.user_data={context.user_data}")
-    
     page = context.user_data.get('products_page', 0)
     total_pages = context.user_data.get('total_products_pages', 1)
-    category = context.user_data.get('current_category')
-    subcategory = context.user_data.get('current_subcategory')
-    
-    print(f"DEBUG: page={page}, total_pages={total_pages}")
-    print(f"DEBUG: category={category}, subcategory={subcategory}")
     
     if text == "⬅️ Oldingi sahifa" and page > 0:
         context.user_data['products_page'] = page - 1
-        print(f"DEBUG: Oldingi sahifaga o'tildi: {page} -> {page-1}")
     elif text == "Keyingi sahifa ➡️" and page < total_pages - 1:
         context.user_data['products_page'] = page + 1
-        print(f"DEBUG: Keyingi sahifaga o'tildi: {page} -> {page+1}")
     else:
         await update.message.reply_text("ℹ️ Boshqa sahifa mavjud emas")
         return MAIN_MENU
     
-    # Mahsulotlarni qayta ko'rsatish
-    await show_products(update, context, category, subcategory)
+    category = context.user_data.get('current_category')
+    subcategory = context.user_data.get('current_subcategory')
+    
+    if category:
+        result = await show_products(update, context, category, subcategory)
+        return result  # ✅ show_products qaysi state'ga qaytsa, o'shani qaytarish
+    
     return MAIN_MENU
 
 async def handle_back(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1516,13 +1490,9 @@ def main():
                 MessageHandler(filters.Regex("^(⛽ Tank|🚀 H Max|⭐ Stell Max|⚔️ Samuray|🐅 Tiger|🔧 Barcha Qismlari)$"), scooter_menu),
                 MessageHandler(filters.Regex("^(⬅️ Oldingi sahifa|Keyingi sahifa ➡️)$"), handle_pagination),
                 MessageHandler(filters.Regex("^(💰 To'lov qilish|📦 Buyurtma berish)$"), product_selected),
-                MessageHandler(filters.Regex("^(🔙 Orqaga)$"), handle_back),  # ✅ MUHIM!
+                MessageHandler(filters.Regex("^(🔙 Orqaga)$"), handle_back),  # ✅ FAQRAT BIR MARTA!
                 MessageHandler(filters.TEXT & ~filters.COMMAND, main_menu)  # fallback
-                MessageHandler(filters.Regex(r"^(⬅️ Oldingi sahifa|Keyingi sahifa ➡️)$"), handle_pagination),
-    
-                # ✅ "Orqaga" uchun
-                MessageHandler(filters.Regex(r"^(🔙 Orqaga)$"), handle_back),
-            ],
+            ],  # ✅ BU YERDA VIRGUL QO'YILGAN
             PRODUCT_SELECTED: [
                 MessageHandler(filters.TEXT & ~filters.COMMAND, product_selected)
             ],
