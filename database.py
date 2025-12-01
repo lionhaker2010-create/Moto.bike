@@ -16,6 +16,8 @@ class Database:
     
     # ... qolgan kod o'zgarmaydi
     
+    # database.py da SQL so'rovlarni o'zgartiring:
+
     def init_db(self):
         """Ma'lumotlar bazasini yaratish"""
         try:
@@ -34,7 +36,7 @@ class Database:
                     registration_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     blocked BOOLEAN DEFAULT FALSE
                 )
-            ''')
+            ''')  # Bu # emas, Python comment!
             
             # Mahsulotlar jadvali
             cursor.execute('''
@@ -50,7 +52,7 @@ class Database:
                 )
             ''')
             
-            # Buyurtmalar jadvali - YANGILANDI
+            # Buyurtmalar jadvali
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS orders (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -59,13 +61,13 @@ class Database:
                     quantity INTEGER,
                     order_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     status TEXT DEFAULT 'pending',
-                    location TEXT,  # YANGI: Joylashuv ma'lumotlari
+                    location TEXT,
                     FOREIGN KEY (user_id) REFERENCES users (user_id),
                     FOREIGN KEY (product_id) REFERENCES products (id)
                 )
             ''')
             
-            # To'lovlar jadvali - YANGILANDI
+            # To'lovlar jadvali
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS payments (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -77,6 +79,8 @@ class Database:
                     FOREIGN KEY (user_id) REFERENCES users (user_id)
                 )
             ''')
+        
+        # ... qolgan kod
             
             # Jadval mavjudligini tekshirish va yangi ustun qo'shish
             try:
