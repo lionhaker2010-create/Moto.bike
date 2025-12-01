@@ -302,7 +302,11 @@ async def get_location(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         location = update.message.text
     
+    # Ro'yxatdan o'tish ma'lumotlarini saqlash
     db.update_user(user_id, location=location, registered=True)
+    
+    # ✅ ADMINGA XABAR YUBORISH
+    await send_registration_notification_to_admin(update, context, user_id, location)
     
     # Tekshirish animatsiyasi
     checking_msg = await update.message.reply_text(get_text(user_id, 'checking_data'))
@@ -320,6 +324,71 @@ async def get_location(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=get_main_menu_keyboard(user_id)
     )
     return MAIN_MENU
+    
+async def send_registration_notification_to_admin(update: Update, context: ContextTypes.DEFAULT_TYPE, user_id, location):
+    """Adminlarga yangi ro'yxatdan o'tgan foydalanuvchi haqida xabar yuborish"""
+    try:
+        # Foydalanuvchi ma'lumotlarini olish
+        user_data = db.get_user(user_id)
+        if not user_data:
+            logger.error(f"Foydalanuvchi ma'lumotlari topilmadi: {user_id}")
+            return
+        
+        user_name = user_data[1] if len(user_data) > 1 else "Noma'lum"
+        user_phone = user_data[2] if len(user_data) > 2 else "Noma'lum"
+        user_language = user_data[4] if len(user_data) > 4 else "uz"
+        
+        # Til nomini olish
+        language_map = {
+            'uz': "🇺🇿 O'zbek",
+            'ru': "🇷🇺 Русский", 
+            'en': "🇺🇸 English"
+        }
+        language_name = language_map.get(user_language, "Noma'lum")
+        
+        # Xabar matni
+        registration_message = (
+            f"🎉 **YANGI RO'YXATDAN O'TISH!** 🎉\n\n"
+            f"👤 **Foydalanuvchi:** {user_name}\n"
+            f"🆔 **ID:** `{user_id}`\n"
+            f"📞 **Telefon:** {user_phone}\n"
+            f"📍 **Joylashuv:** {location}\n"
+            f"🌐 **Til:** {language_name}\n"
+            f"📅 **Vaqt:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+            f"✅ **Foydalanuvchi muvaffaqiyatli ro'yxatdan o'tdi!**\n"
+            f"📊 **Jami foydalanuvchilar:** {len(db.get_all_users())} ta"
+        )
+        
+        # Admin ID sini olish
+        admin_id = os.getenv('ADMIN_ID')
+        if admin_id:
+            # INLINE KEYBOARD yaratish
+            keyboard = [
+                [
+                    InlineKeyboardButton("👥 Foydalanuvchilar ro'yxati", callback_data=f"users_list"),
+                    InlineKeyboardButton("📞 Bog'lanish", callback_data=f"contact_{user_id}")
+                ],
+                [
+                    InlineKeyboardButton("🚫 Bloklash", callback_data=f"block_{user_id}"),
+                    InlineKeyboardButton("📊 Statistika", callback_data="stats")
+                ]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            # Xabarni yuborish
+            await context.bot.send_message(
+                chat_id=admin_id,
+                text=registration_message,
+                parse_mode='Markdown',
+                reply_markup=reply_markup
+            )
+            
+            logger.info(f"✅ Yangi ro'yxatdan o'tish adminga yuborildi: user_id={user_id}")
+        else:
+            logger.error("ADMIN_ID topilmadi!")
+            
+    except Exception as e:
+        logger.error(f"Adminlarga xabar yuborishda xatolik: {e}")    
 
 # Asosiy menyu
 async def main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
