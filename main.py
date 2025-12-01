@@ -433,8 +433,10 @@ async def main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return MAIN_MENU
 
 # Mahsulotlarni ko'rsatish uchun funksiyalar
-async def show_products(update: Update, context: ContextTypes.DEFAULT_TYPE, category, subcategory=None):
-    """Mahsulotlarni ko'rsatish"""
+async def show_products(update: Update, context: ContextTypes.DEFAULT_TYPE, category, subcategory=None, mode="view"):
+    """Mahsulotlarni ko'rsatish
+    mode: "view" - ko'rish uchun, "select" - tanlash uchun
+    """
     user_id = update.effective_user.id
     products = db.get_products_by_category(category, subcategory)
     
@@ -480,7 +482,7 @@ async def show_products(update: Update, context: ContextTypes.DEFAULT_TYPE, cate
         # Narxni formatlash
         price_formatted = f"{price:,.0f} so'm"
         
-        # ✅ FAQRAT BIR XABARDA BARCHASI
+        # Xabar matni
         message = (
             f"🏷️ **{name_clean}**\n\n"
             f"💰 **Narxi:** {price_formatted}\n"
@@ -500,7 +502,7 @@ async def show_products(update: Update, context: ContextTypes.DEFAULT_TYPE, cate
                     parse_mode='Markdown'
                 )
                 
-                # Agar ko'proq rasmlar bo'lsa, alohida media guruhda
+                # Agar ko'proq rasmlar bo'lsa
                 if len(photos) > 1:
                     media_group = []
                     for photo_id in photos[1:]:
@@ -522,7 +524,7 @@ async def show_products(update: Update, context: ContextTypes.DEFAULT_TYPE, cate
                 parse_mode='Markdown'
             )
     
-    # ✅ SAHIFALASH TUGMALARI
+    # Sahifalash tugmalari
     pagination_keyboard = []
     
     if page > 0:
@@ -533,17 +535,14 @@ async def show_products(update: Update, context: ContextTypes.DEFAULT_TYPE, cate
     
     pagination_keyboard.append(["🔙 Orqaga"])
     
-    # ✅ SAHIFALASH XABARINI FAQRAT MAHSULOT TANLANGANDAN KEYIN YUBORAMIZ
-    # Bu yerda emas, keyinroq
-    
     # Context ni saqlash
     context.user_data['products_page'] = page
     context.user_data['total_products_pages'] = total_pages
     context.user_data['current_category'] = category
     context.user_data['current_subcategory'] = subcategory
     
-    # ✅ "MAHSULOT TANLANDI!" XABARINI VA TUGMALARNI YUBORAMIZ
-    if current_product:
+    # ✅ MODEGA QARAB QAYTISH:
+    if mode == "select" and current_product:
         # "Mahsulot tanlandi!" xabarini yuborish
         order_keyboard = [
             ["💰 To'lov qilish", "📦 Buyurtma berish"],
@@ -558,7 +557,7 @@ async def show_products(update: Update, context: ContextTypes.DEFAULT_TYPE, cate
             reply_markup=ReplyKeyboardMarkup(order_keyboard, resize_keyboard=True)
         )
         
-        # Sahifalash tugmalarini "Mahsulot tanlandi!" dan keyin yuboramiz
+        # Sahifalash tugmalarini yuborish
         await update.message.reply_text(
             f"📄 Sahifa {page + 1}/{total_pages} - {len(products)} ta mahsulot",
             reply_markup=ReplyKeyboardMarkup(pagination_keyboard, resize_keyboard=True)
@@ -569,9 +568,14 @@ async def show_products(update: Update, context: ContextTypes.DEFAULT_TYPE, cate
         context.user_data['selected_product_id'] = product_id
         
         return PRODUCT_SELECTED
-    
-    # Agar mahsulot topilmasa
-    return MAIN_MENU
+    else:
+        # Faqat ko'rish uchun
+        await update.message.reply_text(
+            f"📄 Sahifa {page + 1}/{total_pages} - {len(products)} ta mahsulot",
+            reply_markup=ReplyKeyboardMarkup(pagination_keyboard, resize_keyboard=True)
+        )
+        
+        return MAIN_MENU
 
 # MotoBike menyusi - YANGILANDI
 async def motobike_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -586,17 +590,14 @@ async def motobike_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return MAIN_MENU
     
     elif text in ["⬅️ Oldingi sahifa", "Keyingi sahifa ➡️"]:
+        # Sahifalash uchun - mode="view"
         return await handle_pagination(update, context)
     
     elif text in ["🛡️ Shlemlar", "👕 Moto Kiyimlar", "👞 Oyoq kiyimlari", 
                   "🦵 Oyoq Himoya", "🧤 Qo'lqoplar", "🎭 Yuz himoya"]:
-        # Sahifalashni boshlash va context ni tozalash
+        # Mahsulotlarni ko'rish uchun - mode="view"
         context.user_data['products_page'] = 0
-        context.user_data.pop('selected_product', None)
-        context.user_data.pop('selected_product_id', None)
-        
-        result = await show_products(update, context, "🏍️ MotoBike", text)
-        return result
+        return await show_products(update, context, "🏍️ MotoBike", text, mode="view")
     
     elif text == "🔧 MOTO EHTIYOT QISMLAR":
         await update.message.reply_text(
@@ -604,6 +605,20 @@ async def motobike_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=get_parts_keyboard(user_id)
         )
         return MAIN_MENU
+    
+    elif text in ["💰 To'lov qilish", "📦 Buyurtma berish"]:
+        # Mahsulot tanlash uchun - mode="select"
+        category = context.user_data.get('current_category')
+        subcategory = context.user_data.get('current_subcategory')
+        
+        if category:
+            return await show_products(update, context, category, subcategory, mode="select")
+        else:
+            await update.message.reply_text(
+                "❌ Iltimos, avval mahsulot tanlang!",
+                reply_markup=get_motobike_keyboard(user_id)
+            )
+            return MAIN_MENU
     
     else:
         await update.message.reply_text(
@@ -722,8 +737,8 @@ async def handle_pagination(update: Update, context: ContextTypes.DEFAULT_TYPE):
     subcategory = context.user_data.get('current_subcategory')
     
     if category:
-        result = await show_products(update, context, category, subcategory)
-        return result  # ✅ show_products qaysi state'ga qaytsa, o'shani qaytarish
+        # ✅ Sahifalashda ham mode="view"
+        return await show_products(update, context, category, subcategory, mode="view")
     
     return MAIN_MENU
 
@@ -1558,6 +1573,7 @@ def main():
                 MessageHandler(filters.Regex("^(⛽ Tank|🚀 H Max|⭐ Stell Max|⚔️ Samuray|🐅 Tiger|🔧 Barcha Qismlari)$"), scooter_menu),
                 MessageHandler(filters.Regex("^(⬅️ Oldingi sahifa|Keyingi sahifa ➡️)$"), handle_pagination),
                 MessageHandler(filters.Regex("^(💰 To'lov qilish|📦 Buyurtma berish)$"), product_selected),  # ✅ BU YERDA
+                MessageHandler(filters.Regex("^(⬅️ Oldingi sahifa|Keyingi sahifa ➡️)$"), handle_pagination),
                 MessageHandler(filters.Regex("^(🔙 Orqaga)$"), handle_back),
                 MessageHandler(filters.TEXT & ~filters.COMMAND, main_menu)
             ],
