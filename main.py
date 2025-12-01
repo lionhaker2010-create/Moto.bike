@@ -11,6 +11,7 @@ from datetime import datetime
 import os
 from telegram import InputMediaPhoto
 import logging
+import telegram
 from dotenv import load_dotenv
 from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove, Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, ConversationHandler
@@ -820,9 +821,18 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
     # Admin tekshirish
     from admin import is_admin
     if not is_admin(user_id):
-        await query.edit_message_text("❌ Siz admin emassiz!")
+        # Faqat matnli xabarlarni tahrirlash mumkin
+        try:
+            await query.edit_message_text("❌ Siz admin emassiz!")
+        except telegram.error.BadRequest:
+            # Agar xabar rasmli bo'lsa, yangi xabar yuboramiz
+            await context.bot.send_message(
+                chat_id=user_id,
+                text="❌ Siz admin emassiz!"
+            )
         return
     
+    # Callback data ni qayta ishlash
     if callback_data.startswith('confirm_order_'):
         order_id = int(callback_data.replace('confirm_order_', ''))
         await confirm_order_callback(query, context, order_id)
@@ -846,97 +856,288 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
     elif callback_data.startswith('contact_'):
         contact_user_id = int(callback_data.replace('contact_', ''))
         await contact_customer_callback(query, context, contact_user_id)
+    
+    else:
+        logger.warning(f"Noma'lum callback_data: {callback_data}")
+        try:
+            await query.edit_message_text("❌ Noma'lum amal!")
+        except telegram.error.BadRequest:
+            await context.bot.send_message(
+                chat_id=user_id,
+                text="❌ Noma'lum amal!"
+            )
 
 async def confirm_order_callback(query, context, order_id):
     """Buyurtmani tasdiqlash (callback)"""
-    success = db.update_order_status(order_id, 'completed')
-    
-    if success:
-        # Buyurtma ma'lumotlarini olish
-        order_info = db.get_order_by_id(order_id)
-        if order_info:
-            user_id = order_info[1]
-            location = order_info[6] if len(order_info) > 6 else "Joylashuv ko'rsatilmagan"  # location maydoni
-            
-            try:
-                await context.bot.send_message(
-                    chat_id=user_id,
-                    text=f"🎉 **BUYURTMANGIZ TASDIQLANDI!** 🎉\n\n"
-                         f"✅ **Buyurtmangiz muvaffaqiyatli tasdiqlandi!**\n"
-                         f"🚚 **Tez orada siz bilan etkazib berish xizmatchilarimiz bog'lanadi**\n"
-                         f"📍 **Joylashuvingiz:** {location}\n"
-                         f"📞 **Iltimos, telefoningiz doim aloqada bo'lsin**\n\n"
-                         f"🕒 **Ish vaqti:** 09:00 - 18:00\n"
-                         f"👤 **Operator:** @Operator_Kino_1985\n"
-                         f"☎️ **Telefon:** +998(98)8882505"
-                )
-            except Exception as e:
-                logger.error(f"Foydalanuvchiga xabar yuborishda xatolik: {e}")
+    try:
+        success = db.update_order_status(order_id, 'completed')
         
-        await query.edit_message_text(
-            f"✅ **Buyurtma #{order_id} muvaffaqiyatli tasdiqlandi!**\n\n"
-            f"📍 **Joylashuv:** {location}\n"
-            f"Mijozga tasdiqlash haqida xabar yuborildi."
-        )
-    else:
-        await query.edit_message_text(f"❌ **Buyurtma #{order_id} topilmadi!**")
+        if success:
+            # Buyurtma ma'lumotlarini olish
+            order_info = db.get_order_by_id(order_id)
+            if order_info:
+                user_id = order_info[1]
+                location = order_info[6] if len(order_info) > 6 else "Joylashuv ko'rsatilmagan"
+                
+                try:
+                    await context.bot.send_message(
+                        chat_id=user_id,
+                        text=f"🎉 **BUYURTMANGIZ TASDIQLANDI!** 🎉\n\n"
+                             f"✅ **Buyurtmangiz muvaffaqiyatli tasdiqlandi!**\n"
+                             f"🚚 **Tez orada siz bilan etkazib berish xizmatchilarimiz bog'lanadi**\n"
+                             f"📍 **Joylashuvingiz:** {location}\n"
+                             f"📞 **Iltimos, telefoningiz doim aloqada bo'lsin**\n\n"
+                             f"🕒 **Ish vaqti:** 09:00 - 18:00\n"
+                             f"👤 **Operator:** @Operator_Kino_1985\n"
+                             f"☎️ **Telefon:** +998(98)8882505"
+                    )
+                except Exception as e:
+                    logger.error(f"Foydalanuvchiga xabar yuborishda xatolik: {e}")
+            
+            # Xavfsiz tahrirlash
+            try:
+                await query.edit_message_text(
+                    f"✅ **Buyurtma #{order_id} muvaffaqiyatli tasdiqlandi!**\n\n"
+                    f"📍 **Joylashuv:** {location}\n"
+                    f"Mijozga tasdiqlash haqida xabar yuborildi."
+                )
+            except telegram.error.BadRequest:
+                # Agar xabar rasmli bo'lsa, yangi xabar yuboramiz
+                await context.bot.send_message(
+                    chat_id=query.from_user.id,
+                    text=f"✅ **Buyurtma #{order_id} muvaffaqiyatli tasdiqlandi!**\n\n"
+                         f"📍 **Joylashuv:** {location}\n"
+                         f"Mijozga tasdiqlash haqida xabar yuborildi."
+                )
+        else:
+            try:
+                await query.edit_message_text(f"❌ **Buyurtma #{order_id} topilmadi!**")
+            except telegram.error.BadRequest:
+                await context.bot.send_message(
+                    chat_id=query.from_user.id,
+                    text=f"❌ **Buyurtma #{order_id} topilmadi!**"
+                )
+    except Exception as e:
+        logger.error(f"Confirm order callbackda xatolik: {e}")
 
 async def confirm_payment_callback(query, context, payment_id):
     """To'lovni tasdiqlash (callback)"""
-    success = db.update_payment_status(payment_id, 'completed')
-    
-    if success:
-        # To'lov ma'lumotlarini olish
-        payment_info = db.get_payment_by_id(payment_id)
-        if payment_info:
-            user_id = payment_info[1]
-            
-            try:
-                await context.bot.send_message(
-                    chat_id=user_id,
-                    text="🎉 **TO'LOVINGIZ TASDIQLANDI!** 🎉\n\n"
-                         "✅ **To'lov muvaffaqiyatli tasdiqlandi!**\n"
-                         "🚚 **Tez orada siz bilan etkazib berish xizmatchilarimiz bog'lanadi**\n"
-                         "📍 **Joylashuvingiz:** Berilgan manzil bo'yicha\n"
-                         "📞 **Iltimos, telefoningiz doim aloqada bo'lsin**\n\n"
-                         "🕒 **Ish vaqti:** 09:00 - 18:00\n"
-                         "👤 **Operator:** @Operator_Kino_1985\n"
-                         "☎️ **Telefon:** +998(98)8882505"
-                )
-            except Exception as e:
-                logger.error(f"Foydalanuvchiga xabar yuborishda xatolik: {e}")
+    try:
+        success = db.update_payment_status(payment_id, 'completed')
         
-        await query.edit_message_text(
-            f"✅ **To'lov #{payment_id} muvaffaqiyatli tasdiqlandi!**\n\n"
-            f"Mijozga tasdiqlash haqida xabar yuborildi."
-        )
-    else:
-        await query.edit_message_text(f"❌ **To'lov #{payment_id} topilmadi!**")
+        if success:
+            # To'lov ma'lumotlarini olish
+            payment_info = db.get_payment_by_id(payment_id)
+            if payment_info:
+                user_id = payment_info[1]
+                
+                try:
+                    await context.bot.send_message(
+                        chat_id=user_id,
+                        text="🎉 **TO'LOVINGIZ TASDIQLANDI!** 🎉\n\n"
+                             "✅ **To'lov muvaffaqiyatli tasdiqlandi!**\n"
+                             "🚚 **Tez orada siz bilan etkazib berish xizmatchilarimiz bog'lanadi**\n"
+                             "📍 **Joylashuvingiz:** Berilgan manzil bo'yicha\n"
+                             "📞 **Iltimos, telefoningiz doim aloqada bo'lsin**\n\n"
+                             "🕒 **Ish vaqti:** 09:00 - 18:00\n"
+                             "👤 **Operator:** @Operator_Kino_1985\n"
+                             "☎️ **Telefon:** +998(98)8882505"
+                    )
+                except Exception as e:
+                    logger.error(f"Foydalanuvchiga xabar yuborishda xatolik: {e}")
+            
+            # Xavfsiz tahrirlash
+            try:
+                await query.edit_message_text(
+                    f"✅ **To'lov #{payment_id} muvaffaqiyatli tasdiqlandi!**\n\n"
+                    f"Mijozga tasdiqlash haqida xabar yuborildi."
+                )
+            except telegram.error.BadRequest:
+                # Agar xabar rasmli bo'lsa, yangi xabar yuboramiz
+                await context.bot.send_message(
+                    chat_id=query.from_user.id,
+                    text=f"✅ **To'lov #{payment_id} muvaffaqiyatli tasdiqlandi!**\n\n"
+                         f"Mijozga tasdiqlash haqida xabar yuborildi."
+                )
+        else:
+            try:
+                await query.edit_message_text(f"❌ **To'lov #{payment_id} topilmadi!**")
+            except telegram.error.BadRequest:
+                await context.bot.send_message(
+                    chat_id=query.from_user.id,
+                    text=f"❌ **To'lov #{payment_id} topilmadi!**"
+                )
+    except Exception as e:
+        logger.error(f"Confirm payment callbackda xatolik: {e}")
 
 # Qolgan callback funksiyalarni ham shu tarzda yozing
 async def reject_order_callback(query, context, order_id):
     """Buyurtmani rad etish"""
-    success = db.update_order_status(order_id, 'rejected')
-    # ... implement ...
+    try:
+        success = db.update_order_status(order_id, 'rejected')
+        
+        if success:
+            # Buyurtma ma'lumotlarini olish
+            order_info = db.get_order_by_id(order_id)
+            if order_info:
+                user_id = order_info[1]
+                
+                try:
+                    await context.bot.send_message(
+                        chat_id=user_id,
+                        text="❌ **BUYURTMANGIZ RAD ETILDI!**\n\n"
+                             "❌ **Buyurtmangiz rad etildi!**\n"
+                             "💬 **Sabab:** Admin tomonidan rad etildi\n\n"
+                             "📞 **Batafsil ma'lumot uchun:** @Operator_Kino_1985\n"
+                             "☎️ **Telefon:** +998(98)8882505"
+                    )
+                except Exception as e:
+                    logger.error(f"Foydalanuvchiga xabar yuborishda xatolik: {e}")
+            
+            # Xavfsiz tahrirlash
+            try:
+                await query.edit_message_text(
+                    f"❌ **Buyurtma #{order_id} rad etildi!**\n\n"
+                    f"Mijozga rad etilganligi haqida xabar yuborildi."
+                )
+            except telegram.error.BadRequest:
+                # Agar xabar rasmli bo'lsa, yangi xabar yuboramiz
+                await context.bot.send_message(
+                    chat_id=query.from_user.id,
+                    text=f"❌ **Buyurtma #{order_id} rad etildi!**\n\n"
+                         f"Mijozga rad etilganligi haqida xabar yuborildi."
+                )
+        else:
+            try:
+                await query.edit_message_text(f"❌ **Buyurtma #{order_id} topilmadi!**")
+            except telegram.error.BadRequest:
+                await context.bot.send_message(
+                    chat_id=query.from_user.id,
+                    text=f"❌ **Buyurtma #{order_id} topilmadi!**"
+                )
+    except Exception as e:
+        logger.error(f"Reject order callbackda xatolik: {e}")
 
 async def reject_payment_callback(query, context, payment_id):
     """To'lovni rad etish"""
-    success = db.update_payment_status(payment_id, 'rejected')
-    # ... implement ...
+    try:
+        success = db.update_payment_status(payment_id, 'rejected')
+        
+        if success:
+            # To'lov ma'lumotlarini olish
+            payment_info = db.get_payment_by_id(payment_id)
+            if payment_info:
+                user_id = payment_info[1]
+                
+                try:
+                    await context.bot.send_message(
+                        chat_id=user_id,
+                        text="❌ **TO'LOVINGIZ RAD ETILDI!**\n\n"
+                             "❌ **To'lovingiz rad etildi!**\n"
+                             "💬 **Sabab:** Chek noto'g'ri yoki to'liq emas\n\n"
+                             "📞 **Batafsil ma'lumot uchun:** @Operator_Kino_1985\n"
+                             "☎️ **Telefon:** +998(98)8882505"
+                    )
+                except Exception as e:
+                    logger.error(f"Foydalanuvchiga xabar yuborishda xatolik: {e}")
+            
+            # Xavfsiz tahrirlash
+            try:
+                await query.edit_message_text(
+                    f"❌ **To'lov #{payment_id} rad etildi!**\n\n"
+                    f"Mijozga rad etilganligi haqida xabar yuborildi."
+                )
+            except telegram.error.BadRequest:
+                # Agar xabar rasmli bo'lsa, yangi xabar yuboramiz
+                await context.bot.send_message(
+                    chat_id=query.from_user.id,
+                    text=f"❌ **To'lov #{payment_id} rad etildi!**\n\n"
+                         f"Mijozga rad etilganligi haqida xabar yuborildi."
+                )
+        else:
+            try:
+                await query.edit_message_text(f"❌ **To'lov #{payment_id} topilmadi!**")
+            except telegram.error.BadRequest:
+                await context.bot.send_message(
+                    chat_id=query.from_user.id,
+                    text=f"❌ **To'lov #{payment_id} topilmadi!**"
+                )
+    except Exception as e:
+        logger.error(f"Reject payment callbackda xatolik: {e}")
 
 async def mark_fake_payment_callback(query, context, payment_id):
     """Sohta chek deb belgilash"""
-    success = db.update_payment_status(payment_id, 'fake')
-    # ... implement ...
+    try:
+        success = db.update_payment_status(payment_id, 'fake')
+        
+        if success:
+            # To'lov ma'lumotlarini olish
+            payment_info = db.get_payment_by_id(payment_id)
+            if payment_info:
+                user_id = payment_info[1]
+                
+                try:
+                    await context.bot.send_message(
+                        chat_id=user_id,
+                        text="⚠️ **TO'LOVINGIZ SOHTA CHEK DEB BELGILANDI!**\n\n"
+                             "⚠️ **To'lovingiz sohta chek deb belgilandi!**\n"
+                             "🚫 **Bu holatda sizga javobgarlik yuklanadi**\n\n"
+                             "📞 **Tushuntirish uchun:** @Operator_Kino_1985\n"
+                             "☎️ **Telefon:** +998(98)8882505"
+                    )
+                except Exception as e:
+                    logger.error(f"Foydalanuvchiga xabar yuborishda xatolik: {e}")
+            
+            # Xavfsiz tahrirlash
+            try:
+                await query.edit_message_text(
+                    f"⚠️ **To'lov #{payment_id} sohta chek deb belgilandi!**\n\n"
+                    f"Mijozga ogohlantirish xabari yuborildi."
+                )
+            except telegram.error.BadRequest:
+                # Agar xabar rasmli bo'lsa, yangi xabar yuboramiz
+                await context.bot.send_message(
+                    chat_id=query.from_user.id,
+                    text=f"⚠️ **To'lov #{payment_id} sohta chek deb belgilandi!**\n\n"
+                         f"Mijozga ogohlantirish xabari yuborildi."
+                )
+        else:
+            try:
+                await query.edit_message_text(f"❌ **To'lov #{payment_id} topilmadi!**")
+            except telegram.error.BadRequest:
+                await context.bot.send_message(
+                    chat_id=query.from_user.id,
+                    text=f"❌ **To'lov #{payment_id} topilmadi!**"
+                )
+    except Exception as e:
+        logger.error(f"Mark fake payment callbackda xatolik: {e}")
 
 async def contact_customer_callback(query, context, user_id):
     """Mijoz bilan bog'lanish"""
-    await query.edit_message_text(
-        f"👤 **Mijoz bilan bog'lanish**\n\n"
-        f"Foydalanuvchi ID: `{user_id}`\n\n"
-        f"Endi ushbu foydalanuvchiga yubormoqchi bo'lgan xabaringizni yuboring:",
-        parse_mode='Markdown'
-    )
+    try:
+        # User dataga saqlaymiz
+        context.user_data['contact_user_id'] = user_id
+        context.user_data['action'] = 'send_message_to_customer'
+        
+        # Xavfsiz tahrirlash
+        try:
+            await query.edit_message_text(
+                f"👤 **Mijoz bilan bog'lanish**\n\n"
+                f"Foydalanuvchi ID: `{user_id}`\n\n"
+                f"Endi ushbu foydalanuvchiga yubormoqchi bo'lgan xabaringizni yuboring:",
+                parse_mode='Markdown'
+            )
+        except telegram.error.BadRequest:
+            # Agar xabar rasmli bo'lsa, yangi xabar yuboramiz
+            await context.bot.send_message(
+                chat_id=query.from_user.id,
+                text=f"👤 **Mijoz bilan bog'lanish**\n\n"
+                     f"Foydalanuvchi ID: `{user_id}`\n\n"
+                     f"Endi ushbu foydalanuvchiga yubormoqchi bo'lgan xabaringizni yuboring:",
+                parse_mode='Markdown'
+            )
+    except Exception as e:
+        logger.error(f"Contact customer callbackda xatolik: {e}")
     # Context ga ma'lumot saqlash kerak         
 
 def update_order_status(order_id, status):

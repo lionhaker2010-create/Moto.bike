@@ -95,7 +95,10 @@ def get_users_pagination_keyboard(page=0, total_pages=1):
     if page < total_pages - 1:
         keyboard.append(["Keyingi sahifa ➡️"])
     
+    # ✅ BOG'LANISH tugmasi qo'shildi
+    keyboard.append(["📞 Foydalanuvchi bilan Bog'lanish"])
     keyboard.append(["🔙 Orqaga"])
+    
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
 # Rasmlarni saqlash tugmalari
@@ -967,7 +970,7 @@ async def order_management(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "🆔 **Rad etish uchun buyurtma ID sini kiriting:**",
             reply_markup=ReplyKeyboardMarkup([["🔙 Orqaga"]], resize_keyboard=True)
         )
-        return REJECT_ORDER
+        return REJECT_ORDER  # ✅ Bu yerda REJECT_ORDER ga qaytishi kerak
     
     elif text == "✅ To'lovni Tasdiqlash":
         await update.message.reply_text(
@@ -981,7 +984,7 @@ async def order_management(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "🆔 **Rad etish uchun to'lov ID sini kiriting:**",
             reply_markup=ReplyKeyboardMarkup([["🔙 Orqaga"]], resize_keyboard=True)
         )
-        return REJECT_PAYMENT
+        return REJECT_PAYMENT  # ✅ Bu yerda REJECT_PAYMENT ga qaytishi kerak
     
     elif text == "⚠️ Sohta Chek Deb Belgilash":
         await update.message.reply_text(
@@ -1120,6 +1123,60 @@ async def confirm_payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return CONFIRM_PAYMENT
     
     return ORDER_MANAGEMENT
+    
+# admin.py faylida
+
+async def reject_order(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Buyurtmani rad etish (admin panel)"""
+    try:
+        order_id = int(update.message.text)
+        success = db.update_order_status(order_id, 'rejected')
+        
+        if success:
+            await update.message.reply_text(
+                f"❌ **Buyurtma #{order_id} rad etildi!**",
+                reply_markup=get_order_management_keyboard()
+            )
+        else:
+            await update.message.reply_text(
+                f"❌ **Buyurtma #{order_id} topilmadi!**",
+                reply_markup=get_order_management_keyboard()
+            )
+    except ValueError:
+        await update.message.reply_text(
+            "❌ **Noto'g'ri ID format!**\n\n"
+            "Iltimos, faqat raqamlardan foydalaning.",
+            reply_markup=ReplyKeyboardMarkup([["🔙 Orqaga"]], resize_keyboard=True)
+        )
+        return REJECT_ORDER
+    
+    return ORDER_MANAGEMENT
+
+async def reject_payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """To'lovni rad etish (admin panel)"""
+    try:
+        payment_id = int(update.message.text)
+        success = db.update_payment_status(payment_id, 'rejected')
+        
+        if success:
+            await update.message.reply_text(
+                f"❌ **To'lov #{payment_id} rad etildi!**",
+                reply_markup=get_order_management_keyboard()
+            )
+        else:
+            await update.message.reply_text(
+                f"❌ **To'lov #{payment_id} topilmadi!**",
+                reply_markup=get_order_management_keyboard()
+            )
+    except ValueError:
+        await update.message.reply_text(
+            "❌ **Noto'g'ri ID format!**\n\n"
+            "Iltimos, faqat raqamlardan foydalaning.",
+            reply_markup=ReplyKeyboardMarkup([["🔙 Orqaga"]], resize_keyboard=True)
+        )
+        return REJECT_PAYMENT
+    
+    return ORDER_MANAGEMENT     
 
 # Sohta chekni belgilash
 async def mark_fake_payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1146,7 +1203,7 @@ async def mark_fake_payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return MARK_FAKE_PAYMENT
     
-    return ORDER_MANAGEMENT
+    return ORDER_MANAGEMENT   
 
 # ==================== ADMIN ASOSIY MENYUSI ====================
 
@@ -1159,18 +1216,148 @@ async def admin_main(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     text = update.message.text
     
-    # Mahsulot o'chirish tugmasi
-    if text == "🗑️ Mahsulot O'chirish":
+    # DEBUG: Nima yozayotganingizni ko'ramiz
+    logger.info(f"Admin main: text='{text}', action={context.user_data.get('action')}")
+    
+    # 1. BEKOR QILISH tugmasi - birinchi tekshirish
+    if text == "❌ Bekor qilish":
+        context.user_data.clear()
+        await update.message.reply_text(
+            "✅ **Amal bekor qilindi!**",
+            reply_markup=get_admin_keyboard(),
+            parse_mode='Markdown'
+        )
+        return ADMIN_MAIN
+    
+    # 2. XABAR YUBORISH bosqichi
+    elif context.user_data.get('action') == 'send_message_to_customer':
+        target_user_id = context.user_data.get('contact_user_id')
+        
+        if not target_user_id:
+            await update.message.reply_text(
+                "❌ **Foydalanuvchi ID si topilmadi!**\n\n"
+                "Qaytadan boshlang.",
+                reply_markup=get_admin_keyboard(),
+                parse_mode='Markdown'
+            )
+            context.user_data.clear()
+            return ADMIN_MAIN
+        
+        # Xabar uzunligini tekshirish
+        if len(text.strip()) < 2:
+            await update.message.reply_text(
+                "❌ **Xabar juda qisqa!**\n\n"
+                "Iltimos, kamida 2 belgidan iborat xabar yuboring.",
+                reply_markup=ReplyKeyboardMarkup([["❌ Bekor qilish"]], resize_keyboard=True),
+                parse_mode='Markdown'
+            )
+            return ADMIN_MAIN
+        
+        # Foydalanuvchiga xabar yuborish
+        try:
+            # Foydalanuvchi mavjudligini tekshirish
+            user_info = db.get_user(target_user_id)
+            if not user_info:
+                await update.message.reply_text(
+                    f"❌ **Foydalanuvchi topilmadi!**\n\n"
+                    f"ID: `{target_user_id}`",
+                    reply_markup=get_admin_keyboard(),
+                    parse_mode='Markdown'
+                )
+                context.user_data.clear()
+                return ADMIN_MAIN
+            
+            # Xabar yuborish
+            await context.bot.send_message(
+                chat_id=target_user_id,
+                text=f"📨 **Admin xabari:**\n\n{text}"
+            )
+            
+            await update.message.reply_text(
+                f"✅ **Xabar muvaffaqiyatli yuborildi!**\n\n"
+                f"👤 **Foydalanuvchi ID:** `{target_user_id}`\n"
+                f"📝 **Xabar:** {text}",
+                reply_markup=get_admin_keyboard(),
+                parse_mode='Markdown'
+            )
+            
+            logger.info(f"✅ Admin xabar yubordi: admin_id={user_id}, target_id={target_user_id}")
+            
+        except Exception as e:
+            error_msg = str(e)
+            logger.error(f"❌ Xabar yuborishda xatolik: {error_msg}")
+            
+            await update.message.reply_text(
+                f"❌ **Xabar yuborishda xatolik!**\n\n"
+                f"👤 Foydalanuvchi ID: `{target_user_id}`\n\n"
+                f"❌ **Xatolik:** {error_msg}\n\n"
+                f"Foydalanuvchi botni bloklagan yoki mavjud emas.",
+                reply_markup=get_admin_keyboard(),
+                parse_mode='Markdown'
+            )
+        
+        # User datani tozalash
+        context.user_data.clear()
+        return ADMIN_MAIN
+    
+    # 3. ACTION handler (bloklash, bog'lanish)
+    elif 'action' in context.user_data:
+        action = context.user_data['action']
+        
+        # ID ni tekshirish
+        try:
+            target_user_id = int(text)
+        except ValueError:
+            await update.message.reply_text(
+                "❌ **Iltimos, to'g'ri foydalanuvchi ID sini kiriting!**\n\n"
+                "Faqat raqamlardan iborat bo'lishi kerak.\n"
+                "Masalan: `8083596990`",
+                reply_markup=ReplyKeyboardMarkup([["❌ Bekor qilish"]], resize_keyboard=True),
+                parse_mode='Markdown'
+            )
+            return ADMIN_MAIN
+        
+        if action == 'block':
+            await block_user_with_message(update, context, target_user_id)
+            context.user_data.clear()
+            return ADMIN_MAIN
+        
+        elif action == 'unblock':
+            await unblock_user_with_message(update, context, target_user_id)
+            context.user_data.clear()
+            return ADMIN_MAIN
+        
+        elif action == 'contact_customer':
+            # Mijoz bilan bog'lanish - ID ni saqlaymiz
+            context.user_data['contact_user_id'] = target_user_id
+            context.user_data['action'] = 'send_message_to_customer'
+            
+            await update.message.reply_text(
+                f"👤 **Mijoz bilan bog'lanish**\n\n"
+                f"✅ **Foydalanuvchi ID qabul qilindi:** `{target_user_id}`\n\n"
+                f"📝 **Endi xabaringizni yuboring:**\n\n"
+                f"Xabar yuborilgach, avtomatik admin panelga qaytasiz.\n"
+                f"Bekor qilish uchun '❌ Bekor qilish' tugmasini bosing.",
+                reply_markup=ReplyKeyboardMarkup([["❌ Bekor qilish"]], resize_keyboard=True),
+                parse_mode='Markdown'
+            )
+            return ADMIN_MAIN
+    
+    # 4. Asosiy menyu tugmalari
+    elif text == "📦 Mahsulot Qo'shish":
+        return await start_add_product(update, context)
+    
+    elif text == "🗑️ Mahsulot O'chirish":
         return await start_delete_product(update, context)
     
-    # Statistika tugmasi
+    elif text == "👥 Foydalanuvchilar":
+        return await show_users_list(update, context)  # Yangi funksiya
+    
     elif text == "📊 Statistika":
-        # Umumiy statistika
         total_users = len(db.get_all_users())
         total_products = len(db.get_all_products())
         total_orders = len(db.get_orders())
         
-        # Kategoriyalar bo'yicha mahsulotlar soni
         motobike_products = len(db.get_products_by_category_only("🏍️ MotoBike"))
         scooter_products = len(db.get_products_by_category_only("🛵 Scooter"))
         electric_products = len(db.get_products_by_category_only("⚡ Electric Scooter"))
@@ -1192,93 +1379,22 @@ async def admin_main(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode='Markdown'
         )
     
-    # "Mijoz bilan Bog'lanish" tugmasi - TO'G'RI JOYLASHGAN
-    elif text == "📞 Mijoz bilan Bog'lanish":
-        return await contact_customer(update, context)
-    
-    elif text == "👥 Foydalanuvchilar":
-        users = db.get_all_users()
-        if users:
-            # Sahifalash
-            page = context.user_data.get('users_page', 0)
-            users_per_page = 5
-            total_pages = (len(users) + users_per_page - 1) // users_per_page
-            
-            start_idx = page * users_per_page
-            end_idx = start_idx + users_per_page
-            current_users = users[start_idx:end_idx]
-            
-            message = f"👥 **Barcha foydalanuvchilar** ({len(users)} ta)\n\n"
-            message += f"📄 **Sahifa:** {page + 1}/{total_pages}\n\n"
-            
-            for user in current_users:
-                # Foydalanuvchi ma'lumotlarini xavfsiz olish
-                if len(user) >= 8:
-                    user_id, first_name, phone, location, language, registered, reg_date, blocked = user
-                else:
-                    continue
-                
-                status = "✅ Faol" if not blocked else "🚫 Bloklangan"
-                reg_status = "✅ Ro'yxatdan o'tgan" if registered else "❌ Ro'yxatdan o'tmagan"
-                phone_display = phone if phone else "❌ Ko'rsatilmagan"
-                location_display = location if location else "❌ Ko'rsatilmagan"
-                
-                message += (
-                    f"🆔 **ID:** `{user_id}`\n"
-                    f"👤 **Ism:** {first_name}\n"
-                    f"📞 **Tel:** {phone_display}\n"
-                    f"📍 **Manzil:** {location_display}\n"
-                    f"🌐 **Til:** {language}\n"
-                    f"📅 **Ro'yxatdan o'tgan:** {reg_date}\n"
-                    f"🔰 **Holat:** {status}\n"
-                    f"📋 **Ro'yxat:** {reg_status}\n"
-                    f"────────────────────\n\n"
-                )
-            
-            context.user_data['users_page'] = page
-            context.user_data['total_pages'] = total_pages
-            
-            await update.message.reply_text(
-                message,
-                reply_markup=get_users_pagination_keyboard(page, total_pages),
-                parse_mode='Markdown'
-            )
-        else:
-            await update.message.reply_text("❌ Foydalanuvchilar topilmadi!")
-    
-    elif text == "⬅️ Oldingi sahifa":
-        page = context.user_data.get('users_page', 0)
-        if page > 0:
-            context.user_data['users_page'] = page - 1
-            await show_users_page(update, context)
-    
-    elif text == "Keyingi sahifa ➡️":
-        page = context.user_data.get('users_page', 0)
-        total_pages = context.user_data.get('total_pages', 1)
-        if page < total_pages - 1:
-            context.user_data['users_page'] = page + 1
-            await show_users_page(update, context)
-    
-    elif text == "📦 Mahsulot Qo'shish":
-        return await start_add_product(update, context)
-    
     elif text == "🚫 Bloklash":
         await update.message.reply_text(
-            "🚫 **Bloklash**\n\nFoydalanuvchi ID sini yuboring:\n\nMasalan: `123456789`",
-            reply_markup=ReplyKeyboardMarkup([["🔙 Orqaga"]], resize_keyboard=True),
+            "🚫 **Bloklash**\n\nFoydalanuvchi ID sini yuboring:\n\nMasalan: `8083596990`",
+            reply_markup=ReplyKeyboardMarkup([["❌ Bekor qilish"]], resize_keyboard=True),
             parse_mode='Markdown'
         )
         context.user_data['action'] = 'block'
     
     elif text == "✅ Blokdan Ochish":
         await update.message.reply_text(
-            "✅ **Blokdan ochish**\n\nFoydalanuvchi ID sini yuboring:\n\nMasalan: `123456789`",
-            reply_markup=ReplyKeyboardMarkup([["🔙 Orqaga"]], resize_keyboard=True),
+            "✅ **Blokdan ochish**\n\nFoydalanuvchi ID sini yuboring:\n\nMasalan: `8083596990`",
+            reply_markup=ReplyKeyboardMarkup([["❌ Bekor qilish"]], resize_keyboard=True),
             parse_mode='Markdown'
         )
         context.user_data['action'] = 'unblock'
     
-    # YANGI: Buyurtma va to'lov boshqarish
     elif text == "📋 Buyurtmalarni Boshqarish":
         await update.message.reply_text(
             "📋 **Buyurtma va To'lov Boshqaruvi**\n\n"
@@ -1297,6 +1413,29 @@ async def admin_main(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return ORDER_MANAGEMENT
     
+    elif text == "📞 Foydalanuvchi bilan Bog'lanish":
+        await update.message.reply_text(
+            "👤 **Foydalanuvchi bilan bog'lanish**\n\n"
+            "Foydalanuvchi ID sini kiriting:\n\n"
+            "Masalan: `8083596990`",
+            reply_markup=ReplyKeyboardMarkup([["❌ Bekor qilish"]], resize_keyboard=True),
+            parse_mode='Markdown'
+        )
+        context.user_data['action'] = 'contact_customer'
+    
+    elif text == "⬅️ Oldingi sahifa":
+        page = context.user_data.get('users_page', 0)
+        if page > 0:
+            context.user_data['users_page'] = page - 1
+            await show_users_page(update, context)
+    
+    elif text == "Keyingi sahifa ➡️":
+        page = context.user_data.get('users_page', 0)
+        total_pages = context.user_data.get('total_pages', 1)
+        if page < total_pages - 1:
+            context.user_data['users_page'] = page + 1
+            await show_users_page(update, context)
+    
     elif text == "🔙 Orqaga":
         await update.message.reply_text(
             "👨‍💼 **Admin Panel**",
@@ -1313,74 +1452,14 @@ async def admin_main(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return ConversationHandler.END
     
-    # Bloklash/Blokdan ochish/Mijoz bilan bog'lanish uchun ID qabul qilish
-    elif 'action' in context.user_data:
-        try:
-            target_user_id = int(text)
-            action = context.user_data['action']
-            
-            if action == 'block':
-                await block_user_with_message(update, context, target_user_id)
-            
-            elif action == 'unblock':
-                await unblock_user_with_message(update, context, target_user_id)
-            
-            elif action == 'contact_customer':
-                # Mijoz bilan bog'lanish
-                await update.message.reply_text(
-                    f"👤 **Mijoz bilan bog'lanish**\n\n"
-                    f"Foydalanuvchi ID: `{target_user_id}`\n\n"
-                    f"Endi ushbu foydalanuvchiga yubormoqchi bo'lgan xabaringizni yuboring:",
-                    reply_markup=ReplyKeyboardMarkup([["🔙 Orqaga"]], resize_keyboard=True),
-                    parse_mode='Markdown'
-                )
-                context.user_data['contact_user_id'] = target_user_id
-                context.user_data['action'] = 'send_message_to_customer'
-            
-            context.user_data.pop('action', None)
-            
-        except ValueError:
-            await update.message.reply_text(
-                "❌ **Iltimos, to'g'ri foydalanuvchi ID sini kiriting!**\n\nFaqat raqamlardan iborat bo'lishi kerak.\nMasalan: `123456789`",
-                reply_markup=ReplyKeyboardMarkup([["🔙 Orqaga"]], resize_keyboard=True),
-                parse_mode='Markdown'
-            )
-    
-    # Xabar yuborish uchun handler
-    elif context.user_data.get('action') == 'send_message_to_customer':
-        target_user_id = context.user_data.get('contact_user_id')
-        
-        if text == "🔙 Orqaga":
-            await update.message.reply_text(
-                "👨‍💼 **Admin Panel**",
-                reply_markup=get_admin_keyboard(),
-                parse_mode='Markdown'
-            )
-            context.user_data.clear()
-        else:
-            # Foydalanuvchiga xabar yuborish
-            try:
-                await context.bot.send_message(
-                    chat_id=target_user_id,
-                    text=f"📨 **Admin xabari:**\n\n{text}"
-                )
-                await update.message.reply_text(
-                    f"✅ **Xabar muvaffaqiyatli yuborildi!**\n\n"
-                    f"👤 Foydalanuvchi ID: `{target_user_id}`\n"
-                    f"📝 Xabar: {text}",
-                    reply_markup=get_admin_keyboard(),
-                    parse_mode='Markdown'
-                )
-            except Exception as e:
-                await update.message.reply_text(
-                    f"❌ **Xabar yuborishda xatolik!**\n\n"
-                    f"Foydalanuvchi topilmadi yoki bloklangan.\n"
-                    f"Xatolik: {e}",
-                    reply_markup=get_admin_keyboard(),
-                    parse_mode='Markdown'
-                )
-            
-            context.user_data.clear()
+    # Agar boshqa narsa yozilsa
+    else:
+        await update.message.reply_text(
+            "🤔 **Noma'lum buyruq!**\n\n"
+            "Iltimos, menyudan tugmalardan birini tanlang.",
+            reply_markup=get_admin_keyboard(),
+            parse_mode='Markdown'
+        )
     
     return ADMIN_MAIN
 
@@ -1399,7 +1478,6 @@ async def show_users_page(update: Update, context: ContextTypes.DEFAULT_TYPE):
     message += f"📄 **Sahifa:** {page + 1}/{total_pages}\n\n"
     
     for user in current_users:
-        # Foydalanuvchi ma'lumotlarini xavfsiz olish
         if len(user) >= 8:
             user_id, first_name, phone, location, language, registered, reg_date, blocked = user
         else:
@@ -1422,11 +1500,90 @@ async def show_users_page(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"────────────────────\n\n"
         )
     
+    # Yangi keyboard qurilishi
+    keyboard = []
+    
+    # Sahifalash tugmalari
+    if page > 0:
+        keyboard.append(["⬅️ Oldingi sahifa"])
+    
+    if page < total_pages - 1:
+        keyboard.append(["Keyingi sahifa ➡️"])
+    
+    # BOG'LANISH tugmasi
+    keyboard.append(["📞 Foydalanuvchi bilan Bog'lanish"])
+    keyboard.append(["🔙 Orqaga"])
+    
     await update.message.reply_text(
         message,
-        reply_markup=get_users_pagination_keyboard(page, total_pages),
+        reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True),
         parse_mode='Markdown'
     )
+
+async def show_users_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Foydalanuvchilar ro'yxatini ko'rsatish"""
+    users = db.get_all_users()
+    
+    # Sahifalashni boshlash
+    context.user_data['users_page'] = 0
+    
+    if users:
+        page = 0
+        users_per_page = 5
+        total_pages = (len(users) + users_per_page - 1) // users_per_page
+        
+        start_idx = page * users_per_page
+        end_idx = start_idx + users_per_page
+        current_users = users[start_idx:end_idx]
+        
+        message = f"👥 **Barcha foydalanuvchilar** ({len(users)} ta)\n\n"
+        message += f"📄 **Sahifa:** {page + 1}/{total_pages}\n\n"
+        
+        for user in current_users:
+            if len(user) >= 8:
+                user_id, first_name, phone, location, language, registered, reg_date, blocked = user
+            else:
+                continue
+            
+            status = "✅ Faol" if not blocked else "🚫 Bloklangan"
+            reg_status = "✅ Ro'yxatdan o'tgan" if registered else "❌ Ro'yxatdan o'tmagan"
+            phone_display = phone if phone else "❌ Ko'rsatilmagan"
+            location_display = location if location else "❌ Ko'rsatilmagan"
+            
+            message += (
+                f"🆔 **ID:** `{user_id}`\n"
+                f"👤 **Ism:** {first_name}\n"
+                f"📞 **Tel:** {phone_display}\n"
+                f"📍 **Manzil:** {location_display}\n"
+                f"🌐 **Til:** {language}\n"
+                f"📅 **Ro'yxatdan o'tgan:** {reg_date}\n"
+                f"🔰 **Holat:** {status}\n"
+                f"📋 **Ro'yxat:** {reg_status}\n"
+                f"────────────────────\n\n"
+            )
+        
+        # Keyboard yaratish
+        keyboard = []
+        
+        if total_pages > 1 and page < total_pages - 1:
+            keyboard.append(["Keyingi sahifa ➡️"])
+        
+        keyboard.append(["📞 Foydalanuvchi bilan Bog'lanish"])
+        keyboard.append(["🔙 Orqaga"])
+        
+        context.user_data['total_pages'] = total_pages
+        
+        await update.message.reply_text(
+            message,
+            reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True),
+            parse_mode='Markdown'
+        )
+    else:
+        await update.message.reply_text(
+            "❌ **Foydalanuvchilar topilmadi!**",
+            reply_markup=get_admin_keyboard(),
+            parse_mode='Markdown'
+        )
 
 # Admin handlerini qaytarish funksiyasi
 def get_admin_handler():
@@ -1456,14 +1613,14 @@ def get_admin_handler():
             CONFIRM_ORDER: [
                 MessageHandler(filters.TEXT & ~filters.COMMAND, confirm_order)
             ],
-            REJECT_ORDER: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, confirm_order)  # Siz reject_order funksiyasini yozishingiz kerak
+            REJECT_ORDER: [  # ✅ YANGI: reject_order uchun handler
+                MessageHandler(filters.TEXT & ~filters.COMMAND, reject_order)
             ],
             CONFIRM_PAYMENT: [
                 MessageHandler(filters.TEXT & ~filters.COMMAND, confirm_payment)
             ],
-            REJECT_PAYMENT: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, confirm_payment)  # Siz reject_payment funksiyasini yozishingiz kerak
+            REJECT_PAYMENT: [  # ✅ YANGI: reject_payment uchun handler
+                MessageHandler(filters.TEXT & ~filters.COMMAND, reject_payment)
             ],
             MARK_FAKE_PAYMENT: [
                 MessageHandler(filters.TEXT & ~filters.COMMAND, mark_fake_payment)
@@ -1475,5 +1632,4 @@ def get_admin_handler():
         ],
         allow_reentry=True,
         name="admin_conversation"
-        # persistent=True parametri olib tashlandi
     )
