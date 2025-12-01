@@ -476,46 +476,58 @@ async def show_products(update: Update, context: ContextTypes.DEFAULT_TYPE, cate
     # Orqaga tugmasi
     pagination_keyboard.append(["🔙 Orqaga"])
     
+    # ✅ BU YERDA XABAR YUBORAMIZ
     await update.message.reply_text(
         f"📄 Sahifa {page + 1}/{total_pages} - {len(products)} ta mahsulot",
         reply_markup=ReplyKeyboardMarkup(pagination_keyboard, resize_keyboard=True)
     )
     
+    # Context ni saqlash
     context.user_data['products_page'] = page
     context.user_data['total_products_pages'] = total_pages
     context.user_data['current_category'] = category
     context.user_data['current_subcategory'] = subcategory
     
-    # BUYURTMA TUGMALARI - return MAIN_MENU dan OLDIN
+    # ✅ BU YERDA BUYURTMA TUGMALARI (MAIN_MENU dan OLDIN)
     order_keyboard = []
     order_keyboard.append(["💰 To'lov qilish", "📦 Buyurtma berish"])
     order_keyboard.append(["🔙 Orqaga"])
     
-    await update.message.reply_text(
-        f"🛒 **Mahsulot tanlandi!**\n\n"
-        f"🏷️ {name_clean}\n"
-        f"💰 {price_formatted}\n\n"
-        f"Quyidagi amallardan birini tanlang:",
-        reply_markup=ReplyKeyboardMarkup(order_keyboard, resize_keyboard=True)
-    )
+    if current_product:
+        await update.message.reply_text(
+            f"🛒 **Mahsulot tanlandi!**\n\n"
+            f"🏷️ {name_clean}\n"
+            f"💰 {price_formatted}\n\n"
+            f"Quyidagi amallardan birini tanlang:",
+            reply_markup=ReplyKeyboardMarkup(order_keyboard, resize_keyboard=True)
+        )
+        
+        # Tanlangan mahsulotni saqlaymiz
+        context.user_data['selected_product'] = current_product
+        context.user_data['selected_product_id'] = product_id
+        
+        return PRODUCT_SELECTED  # ✅ MAIN_MENU emas, PRODUCT_SELECTED ga qaytamiz
     
-    # Tanlangan mahsulotni saqlaymiz
-    context.user_data['selected_product'] = current_product
-    context.user_data['selected_product_id'] = product_id
-    
-    return PRODUCT_SELECTED  # MAIN_MENU emas, PRODUCT_SELECTED ga qaytamiz
+    return MAIN_MENU
 
 # MotoBike menyusi - YANGILANDI
 async def motobike_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     text = update.message.text
     
+    # ✅ 1. "Orqaga" ni birinchi tekshirish
     if text == "🔙 Orqaga":
         await update.message.reply_text(
             get_text(user_id, 'main_menu'),
             reply_markup=get_main_menu_keyboard(user_id)
         )
         return MAIN_MENU
+    
+    # ✅ 2. Sahifalash tugmalari
+    elif text in ["⬅️ Oldingi sahifa", "Keyingi sahifa ➡️"]:
+        return await handle_pagination(update, context)
+    
+    # ... qolgan kod ...
     
     elif "MOTO EHTIYOT QISMLAR" in text:
         await update.message.reply_text(
@@ -652,19 +664,29 @@ async def handle_pagination(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     text = update.message.text
     
+    # DEBUG
+    print(f"DEBUG handle_pagination: text={text}, user_id={user_id}")
+    print(f"DEBUG: context.user_data={context.user_data}")
+    
     page = context.user_data.get('products_page', 0)
     total_pages = context.user_data.get('total_products_pages', 1)
     category = context.user_data.get('current_category')
     subcategory = context.user_data.get('current_subcategory')
     
+    print(f"DEBUG: page={page}, total_pages={total_pages}")
+    print(f"DEBUG: category={category}, subcategory={subcategory}")
+    
     if text == "⬅️ Oldingi sahifa" and page > 0:
         context.user_data['products_page'] = page - 1
+        print(f"DEBUG: Oldingi sahifaga o'tildi: {page} -> {page-1}")
     elif text == "Keyingi sahifa ➡️" and page < total_pages - 1:
         context.user_data['products_page'] = page + 1
+        print(f"DEBUG: Keyingi sahifaga o'tildi: {page} -> {page+1}")
     else:
         await update.message.reply_text("ℹ️ Boshqa sahifa mavjud emas")
         return MAIN_MENU
     
+    # Mahsulotlarni qayta ko'rsatish
     await show_products(update, context, category, subcategory)
     return MAIN_MENU
 
@@ -1496,6 +1518,10 @@ def main():
                 MessageHandler(filters.Regex("^(💰 To'lov qilish|📦 Buyurtma berish)$"), product_selected),
                 MessageHandler(filters.Regex("^(🔙 Orqaga)$"), handle_back),  # ✅ MUHIM!
                 MessageHandler(filters.TEXT & ~filters.COMMAND, main_menu)  # fallback
+                MessageHandler(filters.Regex(r"^(⬅️ Oldingi sahifa|Keyingi sahifa ➡️)$"), handle_pagination),
+    
+                # ✅ "Orqaga" uchun
+                MessageHandler(filters.Regex(r"^(🔙 Orqaga)$"), handle_back),
             ],
             PRODUCT_SELECTED: [
                 MessageHandler(filters.TEXT & ~filters.COMMAND, product_selected)
