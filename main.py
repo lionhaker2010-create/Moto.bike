@@ -1,27 +1,20 @@
 import asyncio
 from datetime import datetime
-import asyncio
-from datetime import datetime
 import os
-from telegram import InputMediaPhoto
-import asyncio
-from datetime import datetime
-import asyncio
-from datetime import datetime
-import os
-from telegram import InputMediaPhoto
 import logging
 import telegram
+from threading import Thread
+import requests
+import time
+from telegram import InputMediaPhoto, ReplyKeyboardMarkup, ReplyKeyboardRemove, Update, InlineKeyboardMarkup, InlineKeyboardButton
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, ConversationHandler, CallbackQueryHandler
 from dotenv import load_dotenv
-from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove, Update
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, ConversationHandler
 from database import db
-from telegram import InlineKeyboardMarkup, InlineKeyboardButton
-from telegram.ext import CallbackQueryHandler
-from keep_alive import keep_alive
+from keep_alive import keep_alive, run_flask
 
 # Serverni faol saqlash
 keep_alive()
+print("✅ Bot Render serverida ishga tushdi!")
 
 # .env faylini yuklash
 load_dotenv()
@@ -32,6 +25,26 @@ logging.basicConfig(
     level=logging.INFO
 )
 logger = logging.getLogger(__name__)
+
+# Heartbeat funksiyasi
+def heartbeat_monitor():
+    """Botni faol ushlab turish"""
+    while True:
+        try:
+            # O'zimizga ping yuboramiz
+            port = os.environ.get('PORT', 8080)
+            response = requests.get(f"http://localhost:{port}/ping", timeout=5)
+            logger.info(f"✅ Heartbeat: {response.text}")
+        except Exception as e:
+            logger.warning(f"⚠️ Heartbeat xatosi: {e}")
+        
+        # 5 daqiqa kutish
+        time.sleep(300)
+
+# Heartbeat ni ishga tushirish
+heartbeat_thread = Thread(target=heartbeat_monitor)
+heartbeat_thread.daemon = True
+heartbeat_thread.start()
 
 # Conversation holatlari
 LANGUAGE, NAME, PHONE, LOCATION, MAIN_MENU, PRODUCT_SELECTED, PAYMENT_CONFIRMATION, WAITING_LOCATION = range(8)
@@ -54,7 +67,7 @@ TEXTS = {
         'language_changed': "✅ Til muvaffaqiyatli o'zgartirildi!"
     },
     'ru': {
-        'welcome': "👋 Здравствуйте! Добро пожаловать в бот Moto и Scooter!\n\nЗдесь вы можете найти запчасти и одежду для мотоциклов и скутеров. 🏍️\nТакже доступны арендные электрические скутеры! ⚡",
+        'welcome': "👋 Здравствуйте! Добро пожаловать в бот Moto и Scooter!\n\nЗдесь вы можете найти запчасти и одежду для мотоциклов и скутеers. 🏍️\nТакже доступны арендные электрические скутеers! ⚡",
         'welcome_back': "👋 С возвращением! {name}",
         'choose_language': "🌐 Выберите нужный язык:",
         'enter_name': "✍️ Пожалуйста, введите ваше имя:",
@@ -1363,7 +1376,17 @@ def get_pending_payments():
         logger.error(f"Kutayotgan to'lovlarni olishda xatolik: {e}")
         return []
     finally:
-        conn.close()    
+        conn.close() 
+
+# main.py fayliga qo'shing
+async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Bot statusini ko'rsatish"""
+    await update.message.reply_text(
+        "✅ Bot ishlayapti!\n"
+        f"⏰ Vaqt: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+        f"👥 Foydalanuvchilar: {len(db.get_all_users())}\n"
+        f"📦 Mahsulotlar: {len(db.get_all_products())}"
+    )        
     
 # ==================== MAIN FUNCTION ====================
 

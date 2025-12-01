@@ -1,0 +1,17 @@
+name: Keep Render Alive
+
+on:
+  schedule:
+    # Har 30 daqiqada
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Render App
+        run: |
+          curl -X GET "https://your-app-name.onrender.com/health" \
+            -H "Accept: application/json" \
+            --max-time 30
