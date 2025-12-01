@@ -91,6 +91,22 @@ def get_text(user_id, key, **kwargs):
     text = TEXTS[language].get(key, key)
     return text.format(**kwargs) if kwargs else text
 
+# TEXTS da:
+TEXTS = {
+    'uz': {
+        'back': "🔙 Orqaga",
+        # ...
+    },
+    'ru': {
+        'back': "🔙 Назад",
+        # ...
+    },
+    'en': {
+        'back': "🔙 Back",
+        # ...
+    }
+}
+
 # Tugmalar
 def get_language_keyboard():
     return ReplyKeyboardMarkup([
@@ -119,7 +135,14 @@ def get_motobike_keyboard(user_id):
     return ReplyKeyboardMarkup([
         ["🛡️ Shlemlar", "👕 Moto Kiyimlar", "👞 Oyoq kiyimlari"],
         ["🦵 Oyoq Himoya", "🧤 Qo'lqoplar", "🎭 Yuz himoya"],
-        ["🔧 MOTO EHTIYOT QISMLAR", get_text(user_id, 'back')]
+        ["🔧 MOTO EHTIYOT QISMLAR", get_text(user_id, 'back')]  # "🔙 Orqaga"
+    ], resize_keyboard=True)
+
+def get_scooter_keyboard(user_id):
+    return ReplyKeyboardMarkup([
+        ["⛽ Tank", "🚀 H Max", "⭐ Stell Max"],
+        ["⚔️ Samuray", "🐅 Tiger", "🔧 Barcha Qismlar"],
+        [get_text(user_id, 'back')]  # "🔙 Orqaga"
     ], resize_keyboard=True)
 
 def get_parts_keyboard(user_id):
@@ -285,6 +308,12 @@ async def get_location(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     text = update.message.text
+    
+    # "Orqaga" ni avval tekshirish
+    if text == "🔙 Orqaga" or get_text(user_id, 'back') in text:
+        return await handle_back(update, context)
+    
+    # ... qolgan kod
     
     if "MotoBike" in text:
         await update.message.reply_text(
@@ -628,28 +657,32 @@ async def handle_back(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     text = update.message.text
     
+    print(f"DEBUG: handle_back called. Text: {text}, User: {user_id}")
+    print(f"DEBUG: context.user_data: {context.user_data}")
+    
     if text == "🔙 Orqaga":
-        # Kategoriyaga qarab turli menyularga qaytish
-        category = context.user_data.get('current_category', '')
+        category = context.user_data.get('current_category', 'NONE')
+        print(f"DEBUG: Current category: {category}")
         
         if "MotoBike" in category:
             await update.message.reply_text(
-                "🏍️ MotoBike bo'limi:",
+                f"🏍️ MotoBike bo'limiga qaytdingiz. (Category: {category})",
                 reply_markup=get_motobike_keyboard(user_id)
             )
         elif "Scooter" in category:
             await update.message.reply_text(
-                "🛵 Scooter modellarini tanlang:",
+                f"🛵 Scooter bo'limiga qaytdingiz. (Category: {category})",
                 reply_markup=get_scooter_keyboard(user_id)
             )
         else:
             await update.message.reply_text(
-                get_text(user_id, 'main_menu'),
+                f"🏠 Asosiy menyuga qaytdingiz. (Category: {category})",
                 reply_markup=get_main_menu_keyboard(user_id)
             )
         return MAIN_MENU
     
-    return MAIN_MENU  
+    print(f"DEBUG: Text not 'Orqaga': {text}")
+    return MAIN_MENU
 
 # handle_back funksiyasidan KEYIN:
 
@@ -1445,7 +1478,7 @@ def main():
                 MessageHandler(filters.Regex("^(⛽ Tank|🚀 H Max|⭐ Stell Max|⚔️ Samuray|🐅 Tiger|🔧 Barcha Qismlari)$"), scooter_menu),
                 MessageHandler(filters.Regex("^(⬅️ Oldingi sahifa|Keyingi sahifa ➡️)$"), handle_pagination),
                 MessageHandler(filters.Regex("^(💰 To'lov qilish|📦 Buyurtma berish)$"), product_selected),
-                MessageHandler(filters.Regex("^(🔙 Orqaga)$"), handle_back),
+                MessageHandler(filters.Regex("^(🔙 Orqaga)$"), handle_back),  # BU MUHIM!
                 MessageHandler(filters.TEXT & ~filters.COMMAND, main_menu)
             ],
             PRODUCT_SELECTED: [
