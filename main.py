@@ -309,12 +309,11 @@ async def main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     text = update.message.text
     
-    # "Orqaga" ni avval tekshirish
+    # ✅ 1. "Orqaga" ni AVVAL tekshirish (MUHIM FIX!)
     if text == "🔙 Orqaga" or get_text(user_id, 'back') in text:
         return await handle_back(update, context)
     
-    # ... qolgan kod
-    
+    # ✅ 2. Boshqa menyular
     if "MotoBike" in text:
         await update.message.reply_text(
             "🏍️ MotoBike bo'limi:",
@@ -1466,11 +1465,14 @@ def main():
     # 3. Conversation handler
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler('start', start)],
-        states={
+        onv_handler = ConversationHandler(
+    entry_points=[CommandHandler('start', start)],
+    states={
             LANGUAGE: [MessageHandler(filters.TEXT & ~filters.COMMAND, choose_language)],
             NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_name)],
             PHONE: [MessageHandler(filters.CONTACT | (filters.TEXT & ~filters.COMMAND), get_phone)],
             LOCATION: [MessageHandler(filters.LOCATION | (filters.TEXT & ~filters.COMMAND), get_location)],
+            # MAIN_MENU state'iga qo'shing:
             MAIN_MENU: [
                 MessageHandler(filters.Regex("^(🏍️ MotoBike|🛵 Scooter|⚡ Electric Scooter Arenda)$"), main_menu),
                 MessageHandler(filters.Regex("^(🛡️ Shlemlar|👕 Moto Kiyimlar|👞 Oyoq kiyimlari|🦵 Oyoq Himoya|🧤 Qo'lqoplar|🎭 Yuz himoya|🔧 MOTO EHTIYOT QISMLAR)$"), motobike_menu),
@@ -1478,8 +1480,11 @@ def main():
                 MessageHandler(filters.Regex("^(⛽ Tank|🚀 H Max|⭐ Stell Max|⚔️ Samuray|🐅 Tiger|🔧 Barcha Qismlari)$"), scooter_menu),
                 MessageHandler(filters.Regex("^(⬅️ Oldingi sahifa|Keyingi sahifa ➡️)$"), handle_pagination),
                 MessageHandler(filters.Regex("^(💰 To'lov qilish|📦 Buyurtma berish)$"), product_selected),
-                MessageHandler(filters.Regex("^(🔙 Orqaga)$"), handle_back),  # BU MUHIM!
-                MessageHandler(filters.TEXT & ~filters.COMMAND, main_menu)
+                
+                # ✅ "Orqaga" uchun handler (ENG MUHIM QATOR):
+                MessageHandler(filters.Regex("^(🔙 Orqaga)$"), handle_back),
+                
+                MessageHandler(filters.TEXT & ~filters.COMMAND, main_menu)  # fallback
             ],
             PRODUCT_SELECTED: [
                 MessageHandler(filters.TEXT & ~filters.COMMAND, product_selected)
