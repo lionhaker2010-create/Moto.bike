@@ -1,22 +1,26 @@
+# imghdr patch - birinchi qilish kerak
+import sys
+import types
+
+# Imghdr patch yaratamiz (Python 3.13 da olib tashlangan)
+try:
+    import imghdr
+except ModuleNotFoundError:
+    imghdr = types.ModuleType('imghdr')
+    imghdr.what = lambda file, h=None: 'jpeg'
+    imghdr.test = lambda file, h=None: 'jpeg'
+    sys.modules['imghdr'] = imghdr
+
+# Asosiy importlar
 import asyncio
 from datetime import datetime
 import os
 import logging
-import telegram
 from threading import Thread
-import requests
 import time
-from telegram import InputMediaPhoto, ReplyKeyboardMarkup, ReplyKeyboardRemove, Update, InlineKeyboardMarkup, InlineKeyboardButton
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, ConversationHandler, CallbackQueryHandler
+
+# Environment variables
 from dotenv import load_dotenv
-from database import db
-from keep_alive import keep_alive, run_flask
-
-# Serverni faol saqlash
-keep_alive()
-print("✅ Bot Render serverida ishga tushdi!")
-
-# .env faylini yuklash
 load_dotenv()
 
 # Log qilishni sozlash
@@ -25,6 +29,18 @@ logging.basicConfig(
     level=logging.INFO
 )
 logger = logging.getLogger(__name__)
+
+# Keep alive ni ishga tushirish - BIR MARTA
+from keep_alive import keep_alive
+keep_alive()
+print("✅ Bot Render serverida ishga tushdi!")
+
+# Telegram importlari
+from telegram import InputMediaPhoto, ReplyKeyboardMarkup, ReplyKeyboardRemove, Update, InlineKeyboardMarkup, InlineKeyboardButton
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, ConversationHandler, CallbackQueryHandler
+
+# Database
+from database import db
 
 # Heartbeat funksiyasi
 def heartbeat_monitor():
@@ -42,9 +58,14 @@ def heartbeat_monitor():
         time.sleep(300)
 
 # Heartbeat ni ishga tushirish
-heartbeat_thread = Thread(target=heartbeat_monitor)
-heartbeat_thread.daemon = True
-heartbeat_thread.start()
+try:
+    import requests
+    heartbeat_thread = Thread(target=heartbeat_monitor)
+    heartbeat_thread.daemon = True
+    heartbeat_thread.start()
+    print("✅ Heartbeat monitor ishga tushdi!")
+except ImportError:
+    print("⚠️ Requests moduli yo'q, heartbeat o'chirildi")
 
 # Conversation holatlari
 LANGUAGE, NAME, PHONE, LOCATION, MAIN_MENU, PRODUCT_SELECTED, PAYMENT_CONFIRMATION, WAITING_LOCATION = range(8)
