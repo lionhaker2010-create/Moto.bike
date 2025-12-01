@@ -894,7 +894,7 @@ async def unblock_user_with_message(update: Update, context: ContextTypes.DEFAUL
 # ==================== MIJOZ BILAN BOG'LANISH ====================
 
 async def contact_customer(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Mijoz bilan bog'lanish"""
+    """Mijoz bilan avtomatik bog'lanish"""
     user_id = update.effective_user.id
     
     if not is_admin(user_id):
@@ -902,13 +902,13 @@ async def contact_customer(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return ConversationHandler.END
     
     await update.message.reply_text(
-        "👤 **Mijoz bilan bog'lanish**\n\n"
+        "👤 **Mijoz bilan avtomatik bog'lanish**\n\n"
         "Mijoz ID sini kiriting:\n\n"
         "Masalan: `123456789`",
         reply_markup=ReplyKeyboardMarkup([["🔙 Orqaga"]], resize_keyboard=True),
         parse_mode='Markdown'
     )
-    context.user_data['action'] = 'contact_customer'        
+    context.user_data['action'] = 'contact_customer_auto'      
 
 # ==================== BUYURTMA VA TO'LOV BOSHQARISH ====================
 
@@ -1160,7 +1160,8 @@ async def reject_payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         if success:
             await update.message.reply_text(
-                f"❌ **To'lov #{payment_id} rad etildi!**",
+                f"❌ **To'lov #{payment_id} rad etildi!**\n\n"
+                f"✅ Mijozga rad etilganlik haqida xabar yuborildi.",
                 reply_markup=get_order_management_keyboard()
             )
         else:
@@ -1176,18 +1177,37 @@ async def reject_payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return REJECT_PAYMENT
     
-    return ORDER_MANAGEMENT     
+    return ORDER_MANAGEMENT
 
-# Sohta chekni belgilash
 async def mark_fake_payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Sohta chekni belgilash (admin panel)"""
     try:
         payment_id = int(update.message.text)
         success = db.update_payment_status(payment_id, 'fake')
         
         if success:
+            # Foydalanuvchini bloklash
+            payment_info = db.get_payment_by_id(payment_id)
+            if payment_info:
+                user_id = payment_info[1]
+                db.block_user(user_id)
+                
+                # Bloklangan foydalanuvchiga xabar
+                try:
+                    await context.bot.send_message(
+                        chat_id=user_id,
+                        text="🚫 **SIZ BLOKLANDINGIZ!**\n\n"
+                             "Sabab: Sohta to'lov cheki yuborish\n\n"
+                             "📞 Blokdan ochish uchun admin bilan bog'lanin:\n"
+                             "👤 @Operator_Kino_1985\n"
+                             "☎️ +998(98)8882505"
+                    )
+                except Exception as e:
+                    logger.error(f"Bloklangan foydalanuvchiga xabar yuborishda xatolik: {e}")
+            
             await update.message.reply_text(
                 f"⚠️ **To'lov #{payment_id} sohta chek deb belgilandi!**\n\n"
-                f"Mijozga ogohlantirish xabari yuborildi.",
+                f"❌ Foydalanuvchi bloklandi va ogohlantirish xabari yuborildi.",
                 reply_markup=get_order_management_keyboard()
             )
         else:

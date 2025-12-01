@@ -505,6 +505,8 @@ class Database:
             return None
         finally:
             conn.close()
+            
+            
 
 # Global ma'lumotlar bazasi obyekti
 db = Database()
