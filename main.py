@@ -476,7 +476,7 @@ async def main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return MAIN_MENU
 
 # Mahsulotlarni ko'rsatish uchun funksiyalar
-async def show_products(update: Update, context: ContextTypes.DEFAULT_TYPE, category, subcategory=None, mode="view"):
+async def show_products(update: Update, context: ContextTypes.DEFAULT_TYPE, category, subcategory=None):
     """Mahsulotlarni ko'rsatish"""
     user_id = update.effective_user.id
     products = db.get_products_by_category(category, subcategory)
@@ -507,16 +507,21 @@ async def show_products(update: Update, context: ContextTypes.DEFAULT_TYPE, cate
     # Mahsulot ma'lumotlari
     product_id, prod_category, prod_subcategory, name, price, description, image, available = current_product
     
-    # Rasmlarni o'qish
+    # ✅ RASMLARNI TO'G'RI O'QISH
     photos = []
-    if image and image != "[]" and image != "None" and image != "''" and image != '""':
+    if image:
         try:
+            # Agar image string bo'lsa
             if isinstance(image, str):
-                photos = eval(image)
-            else:
+                # Bo'sh string yoki "None" ni tekshirish
+                if image.strip() and image.lower() != "none" and image != "[]" and image != '""' and image != "''":
+                    # List ga o'tkazish
+                    photos = eval(image)
+            # Agar allaqachon list bo'lsa
+            elif isinstance(image, list):
                 photos = image
         except Exception as e:
-            logger.error(f"Rasmlarni o'qishda xatolik: {e}")
+            logger.error(f"Rasmlarni o'qishda xatolik: {e}, image type: {type(image)}, image: {image}")
             photos = []
     
     # Matnni tozalash
@@ -536,17 +541,46 @@ async def show_products(update: Update, context: ContextTypes.DEFAULT_TYPE, cate
         f"📄 Sahifa {page + 1}/{total_pages}"
     )
     
-    # Rasmlarni yuborish
+    # ✅ BARCHA RASMLARNI YUBORISH - TO'G'RI USUL
     try:
-        if photos:
-            await update.message.reply_photo(
-                photo=photos[0],
-                caption=message,
-                parse_mode='Markdown'
-            )
+        if photos and len(photos) > 0:
+            logger.info(f"DEBUG: Found {len(photos)} photos for product: {name_clean}")
+            
+            # Agar faqat bir rasm bo'lsa
+            if len(photos) == 1:
+                await update.message.reply_photo(
+                    photo=photos[0],
+                    caption=message,
+                    parse_mode='Markdown'
+                )
+            else:
+                # Birinchi rasmni caption bilan
+                await update.message.reply_photo(
+                    photo=photos[0],
+                    caption=f"🏷️ **{name_clean}**\n\n📄 Sahifa {page + 1}/{total_pages}\n\n📸 1-rasm",
+                    parse_mode='Markdown'
+                )
+                
+                # Qolgan rasmlarni alohida media guruhda
+                if len(photos) > 1:
+                    for i, photo_id in enumerate(photos[1:], 2):
+                        try:
+                            await update.message.reply_photo(
+                                photo=photo_id,
+                                caption=f"📸 {i}-rasm - {name_clean}"
+                            )
+                        except Exception as e:
+                            logger.error(f"Rasm {i} yuborishda xatolik: {e}")
         else:
+            # Rasmlar yo'q bo'lsa
             await update.message.reply_text(
-                message,
+                f"📦 **{name_clean}**\n\n"
+                f"💰 **Narxi:** {price_formatted}\n"
+                f"📝 **Tavsif:** {description_clean}\n\n"
+                f"📞 **Buyurtma berish:** @Operator_Kino_1985\n"
+                f"☎️ **Telefon:** +998(98)8882505\n\n"
+                f"📄 Sahifa {page + 1}/{total_pages}\n"
+                f"🖼️ **Rasmlar mavjud emas**",
                 parse_mode='Markdown'
             )
     except Exception as e:
@@ -565,7 +599,6 @@ async def show_products(update: Update, context: ContextTypes.DEFAULT_TYPE, cate
     if page < total_pages - 1:
         pagination_keyboard.append(["Keyingi sahifa ➡️"])
     
-    # ✅ TANLASH TUGMASINI QO'SHAMIZ
     pagination_keyboard.append(["🛒 Mahsulotni tanlash"])
     pagination_keyboard.append(["🔙 Orqaga"])
     
