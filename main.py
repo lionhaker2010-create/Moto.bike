@@ -1573,22 +1573,38 @@ def get_pending_payments():
         return []
     finally:
         conn.close()   
+ 
+# main.py faylida imports dan keyin, main() dan oldin:
 
+# ==================== FLASK SERVER FUNKSIYASI ====================
+def start_web_server():
+    """Flask serverni background da ishga tushirish"""
+    import threading
+    import os
+    
+    def run_server():
+        try:
+            from server import app
+            port = int(os.environ.get("PORT", 8080))
+            logger.info(f"🌐 Flask server starting on port {port}")
+            app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False)
+        except Exception as e:
+            logger.error(f"❌ Flask server error: {e}")
+    
+    # Background thread da ishga tushirish
+    server_thread = threading.Thread(target=run_server, daemon=True)
+    server_thread.start()
+    logger.info("✅ Flask server started in background")
+    return server_thread
 
-# ==================== MAIN FUNCTION ====================
-def main():
-    # Bot tokenini olish
-    TOKEN = os.getenv('BOT_TOKEN')
-    if not TOKEN:
-        logger.error("BOT_TOKEN topilmadi! Environment variable ni tekshiring.")
-        return
+# ==================== PING LOOP FUNKSIYASI ====================
+def start_ping_loop():
+    """Ping loop ni ishga tushirish"""
+    import threading
     
-    # ✅ 1. FLASK SERVERNI ISHGA TUSHIRISH
-    flask_thread = start_web_server()
-    
-    # ✅ 2. ODDIY PING LOOP
-    # main.py da simple_ping funksiyasini tuzating:
-    def simple_ping():
+    def ping_loop():
+        import time
+        import requests
         while True:
             time.sleep(240)  # 4 daqiqa
             try:
@@ -1601,11 +1617,27 @@ def main():
             except Exception as e:
                 logger.warning(f"⚠️ Ping error: {e}")
     
-    ping_thread = threading.Thread(target=simple_ping, daemon=True)
+    ping_thread = threading.Thread(target=ping_loop, daemon=True)
     ping_thread.start()
+    logger.info("✅ Ping loop started")
+    return ping_thread 
+        
+# ==================== MAIN FUNCTION ====================
+def main():
+    # Bot tokenini olish
+    TOKEN = os.getenv('BOT_TOKEN')
+    if not TOKEN:
+        logger.error("BOT_TOKEN topilmadi! Environment variable ni tekshiring.")
+        return
     
-    # ... qolgan kod o'zgarmaydi ...
-    logger.info("✅ Bot uxlatmaslik tizimi ishga tushdi")
+    logger.info("🚀 Starting MotoBike Bot...")
+    logger.info(f"🌐 Port: {os.environ.get('PORT', 8080)}")
+    
+    # ✅ 1. FLASK SERVERNI ISHGA TUSHIRISH
+    flask_thread = start_web_server()
+    
+    # ✅ 2. PING LOOP NI ISHGA TUSHIRISH
+    ping_thread = start_ping_loop()
     
     # Bot ilovasini yaratish
     application = Application.builder().token(TOKEN).build()
@@ -1614,7 +1646,7 @@ def main():
     from admin import get_admin_handler
     application.add_handler(get_admin_handler())
     
-    # 2. Callback query handler qo'shamiz (YANGI)
+    # 2. Callback query handler qo'shamiz
     application.add_handler(CallbackQueryHandler(handle_callback_query))
     
     # 3. Conversation handler
@@ -1662,25 +1694,21 @@ def main():
     
     application.add_handler(conv_handler)
     
-    # Bot ishga tushganda xabar
-    logger.info("🚀 Bot Render'da ishga tushmoqda...")
-    logger.info(f"🌐 Web interface: http://localhost:{os.environ.get('PORT', 8080)}")
-    logger.info("✅ Flask server ishga tushdi")
-    logger.info("✅ Bot uxlatmaslik tizimi ishga tushdi")
-    logger.info("✅ Telegram bot ishga tushmoqda...")
+    logger.info("✅ All systems started")
+    logger.info("🤖 Starting Telegram bot polling...")
     
     # Botni ishga tushirish
     application.run_polling()
 
 
 if __name__ == '__main__':
-    # Webhook emas, polling ishlatish
     try:
         main()
     except KeyboardInterrupt:
         logger.info("Bot to'xtatildi!")
     except Exception as e:
         logger.error(f"Botda xatolik: {e}")
-        # Xatolik bo'lsa, qayta ishga tushish
+        import traceback
+        traceback.print_exc()
         time.sleep(5)
         main()
