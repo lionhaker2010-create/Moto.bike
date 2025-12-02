@@ -1,16 +1,37 @@
+# ==================== IMPORTS ====================
 import asyncio
 from datetime import datetime
 import os
 import time
 import threading
 import requests
-from telegram import InputMediaPhoto, InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, ReplyKeyboardRemove
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, ConversationHandler, CallbackQueryHandler
+import logging
+
+# ✅ TELEGRAM BIBLIOTEKALARI - TO'G'RI IMPORT
+from telegram import (
+    Update,
+    InputMediaPhoto,
+    InlineKeyboardMarkup,
+    InlineKeyboardButton,
+    ReplyKeyboardMarkup,
+    ReplyKeyboardRemove
+)
+from telegram.ext import (
+    Application,
+    CommandHandler,
+    MessageHandler,
+    filters,
+    ContextTypes,
+    ConversationHandler,
+    CallbackQueryHandler
+)
+
+# ✅ LOYIHA FAyLLARI
 from database import db
 from keep_alive import keep_alive
-import logging
 from dotenv import load_dotenv
 
+# ==================== ENVIRONMENT & LOGGING ====================
 # .env faylini yuklash
 load_dotenv()
 
@@ -21,7 +42,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# ✅ ENDI keep_bot_awake() FUNKSIYASI (logger mavjud bo'lgach)
+# ==================== BOTNI UXLAVMSLIK TIZIMI ====================
 def keep_bot_awake():
     """Botni uxlatmaslik uchun background thread"""
     def ping_loop():
@@ -36,7 +57,7 @@ def keep_bot_awake():
                     bot_url = os.getenv('RENDER_URL', 'https://motobike-bot.onrender.com')
                     response = requests.get(f"{bot_url}/ping", timeout=10)
                     if response.status_code == 200:
-                        logger.info(f"✅ Bot ping muvaffaqiyatli: {response.text}")
+                        logger.info(f"✅ Bot ping muvaffaqiyatli")
                     else:
                         logger.warning(f"⚠️ Bot ping: {response.status_code}")
                 except Exception as e:
@@ -52,12 +73,10 @@ def keep_bot_awake():
     ping_thread.start()
     logger.info("✅ Bot uxlatmaslik tizimi ishga tushdi")
 
-# Conversation holatlari
+# ==================== CONVERSATION HOLATLARI ====================
 LANGUAGE, NAME, PHONE, LOCATION, MAIN_MENU, PRODUCT_SELECTED, PAYMENT_CONFIRMATION, WAITING_LOCATION = range(8)
 
-# ... qolgan kodlar ...
-
-# Til sozlamalari
+# ==================== TEXTS DICTIONARY ====================
 TEXTS = {
     'uz': {
         'welcome': "👋 Assalomu Aleykum! Moto va Scooter Botiga Xush Kelibsiz!\n\nSiz bu botda Moto va Scooterlar uchun ehtiyot qism va kiyimlarni topshingiz mumkin. 🏍️\nArenda Electric Scooterlar ham mavjud! ⚡",
@@ -105,6 +124,8 @@ TEXTS = {
         'language_changed': "✅ Language successfully changed!"
     }
 }
+
+# ... (qolgan funksiyalar o'zgarmaydi) ...
 
 def get_text(user_id, key, **kwargs):
     """Foydalanuvchi tiliga mos matnni qaytarish"""
