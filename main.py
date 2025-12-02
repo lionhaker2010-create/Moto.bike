@@ -1,32 +1,46 @@
-import asyncio
-from datetime import datetime
-import asyncio
-from datetime import datetime
-import os
-from telegram import InputMediaPhoto
-import asyncio
-from datetime import datetime
+# ==================== IMPORTS ====================
 import asyncio
 from datetime import datetime
 import os
-from telegram import InputMediaPhoto
+import time  # ✅ BU QATOR MUHIM!
+import threading
+import requests
 import logging
-from dotenv import load_dotenv
-from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove, Update
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, ConversationHandler
-from database import db
-from telegram import InlineKeyboardMarkup, InlineKeyboardButton
-from telegram.ext import CallbackQueryHandler
 
-# .env faylini yuklash
+# ✅ TELEGRAM BIBLIOTEKALARI
+from telegram import (
+    Update,
+    InputMediaPhoto,
+    InlineKeyboardMarkup,
+    InlineKeyboardButton,
+    ReplyKeyboardMarkup,
+    ReplyKeyboardRemove
+)
+from telegram.ext import (
+    Application,
+    CommandHandler,
+    MessageHandler,
+    filters,
+    ContextTypes,
+    ConversationHandler,
+    CallbackQueryHandler
+)
+
+# ✅ LOYIHA FAYLLARI
+from database import db
+# from keep_alive import keep_alive  <- BU QATORNI O'CHIRING!
+from dotenv import load_dotenv
+
+# ==================== ENVIRONMENT & LOGGING ====================
 load_dotenv()
 
-# Log qilishni sozlash
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
 )
 logger = logging.getLogger(__name__)
+
+# ... (qolgan kodlar o'zgarmaydi, lekin time import qilinganligiga ishonch hosil qiling) ...
 
 # Conversation holatlari
 LANGUAGE, NAME, PHONE, LOCATION, MAIN_MENU, PRODUCT_SELECTED, PAYMENT_CONFIRMATION, WAITING_LOCATION = range(8)
@@ -1573,9 +1587,8 @@ def main():
     flask_thread = start_web_server()
     
     # ✅ 2. ODDIY PING LOOP
+    # main.py da simple_ping funksiyasini tuzating:
     def simple_ping():
-        import time
-        import requests
         while True:
             time.sleep(240)  # 4 daqiqa
             try:
