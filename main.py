@@ -475,6 +475,7 @@ async def show_products(update: Update, context: ContextTypes.DEFAULT_TYPE, cate
     if image and image != "[]" and image != "None" and image != "''" and image != '""':
         try:
             if isinstance(image, str):
+                # String dan list ga o'tkazish
                 photos = eval(image)
             else:
                 photos = image
@@ -499,35 +500,41 @@ async def show_products(update: Update, context: ContextTypes.DEFAULT_TYPE, cate
         f"📄 Sahifa {page + 1}/{total_pages}"
     )
     
-    # Agar rasmlar bo'lsa
-    if photos:
-        try:
-            # Faqat birinchi rasmni yuboramiz
-            await update.message.reply_photo(
-                photo=photos[0],
-                caption=message,
-                parse_mode='Markdown'
-            )
-            
-            # Agar ko'proq rasmlar bo'lsa
-            if len(photos) > 1:
+    # ✅ RASMLARNI YUBORISH - TO'G'RI USUL
+    try:
+        if photos:
+            # Agar bir rasm bo'lsa
+            if len(photos) == 1:
+                await update.message.reply_photo(
+                    photo=photos[0],
+                    caption=message,
+                    parse_mode='Markdown'
+                )
+            else:
+                # Birinchi rasmni caption bilan
+                await update.message.reply_photo(
+                    photo=photos[0],
+                    caption=message,
+                    parse_mode='Markdown'
+                )
+                
+                # Qolgan rasmlarni media guruhda
                 media_group = []
                 for photo_id in photos[1:]:
                     media_group.append(InputMediaPhoto(media=photo_id))
                 
                 if media_group:
                     await update.message.reply_media_group(media=media_group)
-                    
-        except Exception as e:
-            logger.error(f"Rasm yuborishda xatolik: {e}")
+        else:
+            # Rasmlar yo'q bo'lsa
             await update.message.reply_text(
-                f"📸 {message}\n\n⚠️ Rasm yuklashda xatolik",
+                message,
                 parse_mode='Markdown'
             )
-    else:
-        # Rasmlar yo'q bo'lsa
+    except Exception as e:
+        logger.error(f"Rasm yuborishda xatolik: {e}")
         await update.message.reply_text(
-            message,
+            f"📸 {message}\n\n⚠️ Rasm yuklashda xatolik",
             parse_mode='Markdown'
         )
     
@@ -548,6 +555,12 @@ async def show_products(update: Update, context: ContextTypes.DEFAULT_TYPE, cate
     context.user_data['current_category'] = category
     context.user_data['current_subcategory'] = subcategory
     
+    # ✅ SAHIFALASH TUGMALARINI YUBORISH
+    await update.message.reply_text(
+        f"📄 Sahifa {page + 1}/{total_pages} - {len(products)} ta mahsulot",
+        reply_markup=ReplyKeyboardMarkup(pagination_keyboard, resize_keyboard=True)
+    )
+    
     # ✅ MODEGA QARAB QAYTISH:
     if mode == "select":
         # "Mahsulot tanlandi!" xabarini yuborish
@@ -564,24 +577,12 @@ async def show_products(update: Update, context: ContextTypes.DEFAULT_TYPE, cate
             reply_markup=ReplyKeyboardMarkup(order_keyboard, resize_keyboard=True)
         )
         
-        # Sahifalash tugmalarini yuborish
-        await update.message.reply_text(
-            f"📄 Sahifa {page + 1}/{total_pages} - {len(products)} ta mahsulot",
-            reply_markup=ReplyKeyboardMarkup(pagination_keyboard, resize_keyboard=True)
-        )
-        
         # Tanlangan mahsulotni saqlaymiz
         context.user_data['selected_product'] = current_product
         context.user_data['selected_product_id'] = product_id
         
         return PRODUCT_SELECTED
     else:
-        # Faqat ko'rish uchun
-        await update.message.reply_text(
-            f"📄 Sahifa {page + 1}/{total_pages} - {len(products)} ta mahsulot",
-            reply_markup=ReplyKeyboardMarkup(pagination_keyboard, resize_keyboard=True)
-        )
-        
         return MAIN_MENU
 
 # MotoBike menyusi - YANGILANDI
@@ -756,7 +757,7 @@ async def handle_pagination(update: Update, context: ContextTypes.DEFAULT_TYPE):
     subcategory = context.user_data.get('current_subcategory')
     
     if category:
-        # ✅ Sahifalashda ham mode="view"
+        # Sahifalashda har doim "view" rejimida
         return await show_products(update, context, category, subcategory, mode="view")
     
     return MAIN_MENU
@@ -800,60 +801,58 @@ async def product_selected(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     text = update.message.text
     
-    print(f"DEBUG product_selected: text={text}")
-    print(f"DEBUG: Has selected_product? {'selected_product' in context.user_data}")
-    
-    # Agar mahsulot tanlanmagan bo'lsa
-    if 'selected_product' not in context.user_data:
-        # Kategoriyani olish
-        category = context.user_data.get('current_category')
-        subcategory = context.user_data.get('current_subcategory')
+    # Agar "Mahsulot tanlandi!" xabaridan kelgan bo'lsa
+    if text in ["💰 To'lov qilish", "📦 Buyurtma berish"]:
+        # Tanlangan mahsulotni tekshirish
+        if 'selected_product' not in context.user_data:
+            # Mahsulot tanlanmagan bo'lsa, tanlash rejimida ko'rsatish
+            category = context.user_data.get('current_category')
+            subcategory = context.user_data.get('current_subcategory')
+            
+            if category:
+                return await show_products(update, context, category, subcategory, mode="select")
+            else:
+                await update.message.reply_text(
+                    "❌ Iltimos, avval mahsulot tanlang!",
+                    reply_markup=get_main_menu_keyboard(user_id)
+                )
+                return MAIN_MENU
         
-        if category:
-            # Mahsulotni tanlash rejimida ko'rsatish
-            return await show_products(update, context, category, subcategory, mode="select")
-        else:
+        # Agar mahsulot tanlangan bo'lsa
+        if text == "💰 To'lov qilish":
             await update.message.reply_text(
-                "❌ Iltimos, avval mahsulot tanlang!",
-                reply_markup=get_main_menu_keyboard(user_id)
+                "💳 **To'lov usulini tanlang:**\n\n"
+                "1️⃣ **Click** - *9860 3501 4890 3205*\n"
+                "2️⃣ **Payme** - *9860 3501 4890 3205*\n"
+                "3️⃣ **Naqd pul** - *Yetkazib berishda*\n\n"
+                "To'lov qilgach, chek rasmini yuboring:",
+                reply_markup=ReplyKeyboardMarkup([["🔙 Orqaga"]], resize_keyboard=True)
             )
-            return MAIN_MENU
-    
-    # Agar mahsulot tanlangan bo'lsa
-    if text == "💰 To'lov qilish":
-        await update.message.reply_text(
-            "💳 **To'lov usulini tanlang:**\n\n"
-            "1️⃣ **Click** - *9860 3501 4890 3205*\n"
-            "2️⃣ **Payme** - *9860 3501 4890 3205*\n"
-            "3️⃣ **Naqd pul** - *Yetkazib berishda*\n\n"
-            "To'lov qilgach, chek rasmini yuboring:",
-            reply_markup=ReplyKeyboardMarkup([["🔙 Orqaga"]], resize_keyboard=True)
-        )
-        return PAYMENT_CONFIRMATION
-    
-    elif text == "📦 Buyurtma berish":
-        # Ma'lumotlarni tekshirish animatsiyasi
-        checking_msg = await update.message.reply_text("🔍 Ma'lumotlar tekshirilmoqda")
-        for i in range(3):
-            await context.bot.edit_message_text(
-                chat_id=update.effective_chat.id,
-                message_id=checking_msg.message_id,
-                text="🔍 Ma'lumotlar tekshirilmoqda" + "." * (i + 1)
+            return PAYMENT_CONFIRMATION
+        
+        elif text == "📦 Buyurtma berish":
+            # Ma'lumotlarni tekshirish animatsiyasi
+            checking_msg = await update.message.reply_text("🔍 Ma'lumotlar tekshirilmoqda")
+            for i in range(3):
+                await context.bot.edit_message_text(
+                    chat_id=update.effective_chat.id,
+                    message_id=checking_msg.message_id,
+                    text="🔍 Ma'lumotlar tekshirilmoqda" + "." * (i + 1)
+                )
+                await asyncio.sleep(1)
+            
+            await context.bot.delete_message(chat_id=update.effective_chat.id, message_id=checking_msg.message_id)
+            
+            await update.message.reply_text(
+                "✅ **Ma'lumotlaringiz tasdiqlandi!**\n\n"
+                "📍 **Iltimos, joylashuvingizni yuboring:**\n\n"
+                "Yetkazib berish manzilini aniq belgilash uchun joylashuvingizni yuboring.",
+                reply_markup=ReplyKeyboardMarkup([
+                    [{"text": "📍 Joylashuvni yuborish", "request_location": True}],
+                    ["🔙 Orqaga"]
+                ], resize_keyboard=True)
             )
-            await asyncio.sleep(1)
-        
-        await context.bot.delete_message(chat_id=update.effective_chat.id, message_id=checking_msg.message_id)
-        
-        await update.message.reply_text(
-            "✅ **Ma'lumotlaringiz tasdiqlandi!**\n\n"
-            "📍 **Iltimos, joylashuvingizni yuboring:**\n\n"
-            "Yetkazib berish manzilini aniq belgilash uchun joylashuvingizni yuboring.",
-            reply_markup=ReplyKeyboardMarkup([
-                [{"text": "📍 Joylashuvni yuborish", "request_location": True}],
-                ["🔙 Orqaga"]
-            ], resize_keyboard=True)
-        )
-        return WAITING_LOCATION
+            return WAITING_LOCATION
     
     elif text == "🔙 Orqaga":
         # Oldingi menyuga qaytish
@@ -864,8 +863,8 @@ async def product_selected(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data.pop('selected_product_id', None)
         
         if category:
-            await show_products(update, context, category, mode="view")
-            return MAIN_MENU
+            # Mahsulotlarni ko'rish rejimida
+            return await show_products(update, context, category, mode="view")
         else:
             await update.message.reply_text(
                 get_text(user_id, 'main_menu'),
