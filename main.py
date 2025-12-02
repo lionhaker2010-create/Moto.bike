@@ -1745,3 +1745,91 @@ if __name__ == '__main__':
         traceback.print_exc()
         time.sleep(5)
         main()
+        
+        # main.py faylida yangi funksiya qo'shamiz:
+
+def create_application(token):
+    """Bot application yaratish (webhook uchun)"""
+    application = Application.builder().token(token).build()
+    
+    # 1. Avval ADMIN handlerini qo'shamiz
+    from admin import get_admin_handler
+    application.add_handler(get_admin_handler())
+    
+    # 2. Callback query handler qo'shamiz
+    application.add_handler(CallbackQueryHandler(handle_callback_query))
+    
+    # 3. Conversation handler
+    conv_handler = ConversationHandler(
+        entry_points=[CommandHandler('start', start)],
+        states={
+            LANGUAGE: [MessageHandler(filters.TEXT & ~filters.COMMAND, choose_language)],
+            NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_name)],
+            PHONE: [MessageHandler(filters.CONTACT | (filters.TEXT & ~filters.COMMAND), get_phone)],
+            LOCATION: [MessageHandler(filters.LOCATION | (filters.TEXT & ~filters.COMMAND), get_location)],
+            MAIN_MENU: [
+                MessageHandler(filters.Regex("^(🏍️ MotoBike|🛵 Scooter|⚡ Electric Scooter Arenda)$"), main_menu),
+                MessageHandler(filters.Regex("^(🛡️ Shlemlar|👕 Moto Kiyimlar|👞 Oyoq kiyimlari|🦵 Oyoq Himoya|🧤 Qo'lqoplar|🎭 Yuz himoya|🔧 MOTO EHTIYOT QISMLAR)$"), motobike_menu),
+                MessageHandler(filters.Regex("^(⚙️ Sep|🛞 Disca|🦋 Parushka|🛑 Tormoz Ruchkasi|💡 Old Chiroq|🔴 Orqa Chiroq|🪑 O'tirgichlar|🔇 Glushitel|🎛️ Gaz Trosi|🔄 Sep Ruchkasi|⛽ Benzin baki|🔥 Svechalar|⚡ Babinalar|📦 Skores Karobka|🔄 Karburator|🛞 Apornik Disc|🛑 Klotkalar|🎨 Tunning Qismlari|📦 Boshqa Qismlari)$"), parts_menu),
+                MessageHandler(filters.Regex("^(⛽ Tank|🚀 H Max|⭐ Stell Max|⚔️ Samuray|🐅 Tiger|🔧 Barcha Qismlari)$"), scooter_menu),
+                
+                # ✅ SAHIFALASH VA TANLASH TUGMALARI
+                MessageHandler(filters.Regex("^(⬅️ Oldingi sahifa|Keyingi sahifa ➡️)$"), handle_pagination),
+                MessageHandler(filters.Regex("^(🛒 Mahsulotni tanlash)$"), select_product),
+                
+                # ✅ "TO'LOV QILISH" VA "BUYURTMA BERISH" TUGMALARI
+                MessageHandler(filters.Regex("^(💰 To'lov qilish|📦 Buyurtma berish)$"), product_selected),
+                
+                # ✅ "ORQAGA" TUGMASI
+                MessageHandler(filters.Regex("^(🔙 Orqaga)$"), handle_back),
+                
+                # Fallback
+                MessageHandler(filters.TEXT & ~filters.COMMAND, main_menu)
+            ],
+            PRODUCT_SELECTED: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, product_selected)
+            ],
+            PAYMENT_CONFIRMATION: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, payment_confirmation),
+                MessageHandler(filters.PHOTO, payment_confirmation)
+            ],
+            WAITING_LOCATION: [
+                MessageHandler(filters.LOCATION, waiting_location),
+                MessageHandler(filters.TEXT & ~filters.COMMAND, waiting_location)
+            ],
+        },
+        fallbacks=[CommandHandler('start', start)],
+        allow_reentry=True
+    )
+    
+    application.add_handler(conv_handler)
+    return application
+
+# main() funksiyasini o'zgartiramiz:
+def main():
+    """Webhook asosida ishlash"""
+    TOKEN = os.getenv('BOT_TOKEN')
+    
+    if not TOKEN:
+        logger.error("BOT_TOKEN topilmadi!")
+        return
+    
+    logger.info("🚀 Starting MotoBike Bot in webhook mode...")
+    
+    # Application yaratish
+    application = create_application(TOKEN)
+    
+    # Webhook o'rnatish
+    webhook_url = f"https://{os.getenv('RENDER_EXTERNAL_HOSTNAME')}/{TOKEN}"
+    
+    application.run_webhook(
+        listen="0.0.0.0",
+        port=int(os.environ.get("PORT", 8080)),
+        url_path=TOKEN,
+        webhook_url=webhook_url,
+        drop_pending_updates=True
+    )
+
+if __name__ == '__main__':
+    main()
+    
