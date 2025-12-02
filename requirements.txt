@@ -1,6 +1,4 @@
-# requirements.txt - Compatible versions
-python-telegram-bot==20.3
+python-telegram-bot==20.7
+Flask==3.0.0
+requests==2.31.0
 python-dotenv==1.0.0
-Flask==2.2.5
-apscheduler==3.9.1
-httpx==0.24.1

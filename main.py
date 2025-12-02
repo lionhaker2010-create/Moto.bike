@@ -800,57 +800,76 @@ async def product_selected(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     text = update.message.text
     
-    # Agar mahsulot tanlanmagan bo'lsa
-    if 'selected_product' not in context.user_data:
-        await update.message.reply_text(
-            "❌ Iltimos, avval mahsulot tanlang! '🛒 Mahsulotni tanlash' tugmasini bosing.",
-            reply_markup=get_main_menu_keyboard(user_id)
-        )
-        return MAIN_MENU
-    
-    # Agar mahsulot tanlangan bo'lsa
-    if text == "💰 To'lov qilish":
-        await update.message.reply_text(
-            "💳 **To'lov usulini tanlang:**\n\n"
-            "1️⃣ **Click** - *9860 3501 4890 3205*\n"
-            "2️⃣ **Payme** - *9860 3501 4890 3205*\n"
-            "3️⃣ **Naqd pul** - *Yetkazib berishda*\n\n"
-            "✅ **To'lov qilgach, chek rasmini yuboring:**",
-            reply_markup=ReplyKeyboardMarkup([["🔙 Orqaga"]], resize_keyboard=True)
-        )
-        return PAYMENT_CONFIRMATION
-    
-    elif text == "📦 Buyurtma berish":
-        # Ma'lumotlarni tekshirish animatsiyasi
-        checking_msg = await update.message.reply_text("🔍 Ma'lumotlar tekshirilmoqda")
-        for i in range(3):
-            await context.bot.edit_message_text(
-                chat_id=update.effective_chat.id,
-                message_id=checking_msg.message_id,
-                text="🔍 Ma'lumotlar tekshirilmoqda" + "." * (i + 1)
+    # Agar "Mahsulot tanlandi!" xabaridan kelgan bo'lsa
+    if text in ["💰 To'lov qilish", "📦 Buyurtma berish"]:
+        # Tanlangan mahsulotni tekshirish
+        if 'selected_product' not in context.user_data:
+            # Mahsulot tanlanmagan bo'lsa, tanlash rejimida ko'rsatish
+            category = context.user_data.get('current_category')
+            subcategory = context.user_data.get('current_subcategory')
+            
+            if category:
+                return await show_products(update, context, category, subcategory, mode="select")
+            else:
+                await update.message.reply_text(
+                    "❌ Iltimos, avval mahsulot tanlang!",
+                    reply_markup=get_main_menu_keyboard(user_id)
+                )
+                return MAIN_MENU
+        
+        # Agar mahsulot tanlangan bo'lsa
+        if text == "💰 To'lov qilish":
+            await update.message.reply_text(
+                "💳 **To'lov usulini tanlang:**\n\n"
+                "1️⃣ **Click** - *9860 3501 4890 3205*\n"
+                "2️⃣ **Payme** - *9860 3501 4890 3205*\n"
+                "3️⃣ **Naqd pul** - *Yetkazib berishda*\n\n"
+                "To'lov qilgach, chek rasmini yuboring:",
+                reply_markup=ReplyKeyboardMarkup([["🔙 Orqaga"]], resize_keyboard=True)
             )
-            await asyncio.sleep(1)
+            return PAYMENT_CONFIRMATION
         
-        await context.bot.delete_message(chat_id=update.effective_chat.id, message_id=checking_msg.message_id)
-        
-        await update.message.reply_text(
-            "✅ **Ma'lumotlaringiz tasdiqlandi!**\n\n"
-            "📍 **Iltimos, joylashuvingizni yuboring:**\n\n"
-            "Yetkazib berish manzilini aniq belgilash uchun joylashuvingizni yuboring.",
-            reply_markup=ReplyKeyboardMarkup([
-                [{"text": "📍 Joylashuvni yuborish", "request_location": True}],
-                ["🔙 Orqaga"]
-            ], resize_keyboard=True)
-        )
-        return WAITING_LOCATION
+        elif text == "📦 Buyurtma berish":
+            # Ma'lumotlarni tekshirish animatsiyasi
+            checking_msg = await update.message.reply_text("🔍 Ma'lumotlar tekshirilmoqda")
+            for i in range(3):
+                await context.bot.edit_message_text(
+                    chat_id=update.effective_chat.id,
+                    message_id=checking_msg.message_id,
+                    text="🔍 Ma'lumotlar tekshirilmoqda" + "." * (i + 1)
+                )
+                await asyncio.sleep(1)
+            
+            await context.bot.delete_message(chat_id=update.effective_chat.id, message_id=checking_msg.message_id)
+            
+            await update.message.reply_text(
+                "✅ **Ma'lumotlaringiz tasdiqlandi!**\n\n"
+                "📍 **Iltimos, joylashuvingizni yuboring:**\n\n"
+                "Yetkazib berish manzilini aniq belgilash uchun joylashuvingizni yuboring.",
+                reply_markup=ReplyKeyboardMarkup([
+                    [{"text": "📍 Joylashuvni yuborish", "request_location": True}],
+                    ["🔙 Orqaga"]
+                ], resize_keyboard=True)
+            )
+            return WAITING_LOCATION
     
     elif text == "🔙 Orqaga":
         # Oldingi menyuga qaytish
-        await update.message.reply_text(
-            get_text(user_id, 'main_menu'),
-            reply_markup=get_main_menu_keyboard(user_id)
-        )
-        return MAIN_MENU
+        category = context.user_data.get('current_category')
+        
+        # Context ni tozalash
+        context.user_data.pop('selected_product', None)
+        context.user_data.pop('selected_product_id', None)
+        
+        if category:
+            # Mahsulotlarni ko'rish rejimida
+            return await show_products(update, context, category, mode="view")
+        else:
+            await update.message.reply_text(
+                get_text(user_id, 'main_menu'),
+                reply_markup=get_main_menu_keyboard(user_id)
+            )
+            return MAIN_MENU
     
     return PRODUCT_SELECTED
 
@@ -1566,6 +1585,38 @@ def get_pending_payments():
     
 # ==================== MAIN FUNCTION ====================
 
+# main.py faylida quyidagini qo'shing:
+
+# Botni uxlatmaslik uchun yangi funksiya
+def keep_bot_awake():
+    """Botni uxlatmaslik uchun background thread"""
+    import threading
+    import time
+    import requests
+    
+    def ping_loop():
+        while True:
+            try:
+                # Har 10 daqiqada ping yuborish
+                time.sleep(600)
+                
+                # O'zimizga ping
+                try:
+                    response = requests.get("https://motobike-bot.onrender.com/ping", timeout=10)
+                    logger.info(f"✅ Bot ping: {response.status_code}")
+                except Exception as e:
+                    logger.warning(f"⚠️ Bot ping xatolik: {e}")
+                    
+            except Exception as e:
+                logger.error(f"Ping loop xatolik: {e}")
+    
+    # Background thread ni ishga tushirish
+    ping_thread = threading.Thread(target=ping_loop)
+    ping_thread.daemon = True
+    ping_thread.start()
+    logger.info("✅ Bot uxlatmaslik tizimi ishga tushdi")
+
+# main() funksiyasida:
 def main():
     # Bot tokenini olish
     TOKEN = os.getenv('BOT_TOKEN')
@@ -1573,8 +1624,13 @@ def main():
         logger.error("BOT_TOKEN topilmadi! Environment variable ni tekshiring.")
         return
     
+    # ✅ BOTNI UXLAVMSLIK TIZIMINI ISHGA TUSHIRISH
+    keep_bot_awake()
+    
     # Bot ilovasini yaratish
     application = Application.builder().token(TOKEN).build()
+    
+    # ... qolgan kod o'zgarmaydi ...
     
     # 1. Avval ADMIN handlerini qo'shamiz
     from admin import get_admin_handler
@@ -1634,5 +1690,15 @@ def main():
     # Botni ishga tushirish
     application.run_polling()
 
+# main.py oxirida:
 if __name__ == '__main__':
-    main()
+    # Webhook emas, polling ishlatish
+    try:
+        main()
+    except KeyboardInterrupt:
+        logger.info("Bot to'xtatildi!")
+    except Exception as e:
+        logger.error(f"Botda xatolik: {e}")
+        # Xatolik bo'lsa, qayta ishga tushish
+        time.sleep(5)
+        main()
