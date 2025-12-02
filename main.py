@@ -1564,31 +1564,20 @@ def get_pending_payments():
     finally:
         conn.close()   
 
-# main.py faylida quyidagini qo'shing:
-def start_web_server():
-    """Flask serverni background da ishga tushirish"""
-    import threading
-    import os
-    
-    def run_server():
-        from server import app
-        port = int(os.environ.get("PORT", 8080))
-        print(f"🌐 Web server starting on port {port}")
-        app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False)
-    
-    # Background thread da ishga tushirish
-    server_thread = threading.Thread(target=run_server, daemon=True)
-    server_thread.start()
-    print("✅ Web server started in background")        
-    
-# ==================== MAIN FUNCTION ====================
 
+# ==================== MAIN FUNCTION ====================
 def main():
     # Bot tokenini olish
     TOKEN = os.getenv('BOT_TOKEN')
     if not TOKEN:
         logger.error("BOT_TOKEN topilmadi! Environment variable ni tekshiring.")
         return
+    
+    # ✅ 1. FLASK SERVERNI ISHGA TUSHIRISH (KINO.BOT USULI)
+    start_web_server()
+    
+    # ✅ 2. BOTNI UXLATMASLIK TIZIMINI ISHGA TUSHIRISH
+    keep_bot_awake()
     
     # Bot ilovasini yaratish
     application = Application.builder().token(TOKEN).build()
@@ -1646,10 +1635,23 @@ def main():
     application.add_handler(conv_handler)
     
     # Bot ishga tushganda xabar
-    logger.info("Bot ishga tushdi!")
+    logger.info("🚀 Bot Render'da ishga tushmoqda...")
+    logger.info(f"🌐 Web interface: http://localhost:{os.environ.get('PORT', 8080)}")
+    logger.info("✅ Flask server ishga tushdi")
+    logger.info("✅ Bot uxlatmaslik tizimi ishga tushdi")
     
     # Botni ishga tushirish
     application.run_polling()
 
+
 if __name__ == '__main__':
-    main()
+    # Webhook emas, polling ishlatish
+    try:
+        main()
+    except KeyboardInterrupt:
+        logger.info("Bot to'xtatildi!")
+    except Exception as e:
+        logger.error(f"Botda xatolik: {e}")
+        # Xatolik bo'lsa, qayta ishga tushish
+        time.sleep(5)
+        main()
