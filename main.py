@@ -1632,7 +1632,7 @@ def start_ping_loop():
         import time
         import requests
         while True:
-            time.sleep(240)  # 4 daqiqa
+            time.sleep(30)  # ⚠️ BU 240 EDI, 30 QILING! ⚠️
             try:
                 port = os.environ.get("PORT", 8080)
                 response = requests.get(f"http://localhost:{port}/ping", timeout=5)
@@ -1646,7 +1646,7 @@ def start_ping_loop():
     ping_thread = threading.Thread(target=ping_loop, daemon=True)
     ping_thread.start()
     logger.info("✅ Ping loop started")
-    return ping_thread 
+    return ping_thread
         
 # ==================== MAIN FUNCTION ====================
 def main():
@@ -1662,8 +1662,10 @@ def main():
     # ✅ 1. FLASK SERVERNI ISHGA TUSHIRISH
     flask_thread = start_web_server()
     
-    # ✅ 2. PING LOOP NI ISHGA TUSHIRISH
+    # ✅ 2. PING LOOP NI ISHGA TUSHIRISH (30 SONIYA!)
     ping_thread = start_ping_loop()
+    
+    # Qolgan kodlar...
     
     # Bot ilovasini yaratish
     application = Application.builder().token(TOKEN).build()
@@ -1723,8 +1725,13 @@ def main():
     logger.info("✅ All systems started")
     logger.info("🤖 Starting Telegram bot polling...")
     
-    # Botni ishga tushirish
-    application.run_polling()
+    # ✅ YANGI: Connection paramlarini o'zgartiramiz
+    application.run_polling(
+        poll_interval=1.0,  # Poll interval
+        timeout=30,  # Timeout
+        drop_pending_updates=True,
+        close_loop=False
+    )
 
 
 if __name__ == '__main__':
