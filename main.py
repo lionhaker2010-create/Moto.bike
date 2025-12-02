@@ -460,69 +460,76 @@ async def show_products(update: Update, context: ContextTypes.DEFAULT_TYPE, cate
     
     current_product = products[page] if page < len(products) else None
     
-    if current_product:
-        product_id, prod_category, prod_subcategory, name, price, description, image, available = current_product
-        
-        # Rasmlarni o'qish
-        photos = []
-        if image and image != "[]" and image != "None" and image != "''" and image != '""':
-            try:
-                if isinstance(image, str):
-                    photos = eval(image)
-                else:
-                    photos = image
-            except Exception as e:
-                logger.error(f"Rasmlarni o'qishda xatolik: {e}, image: {image}")
-                photos = []
-        
-        # Matnni tozalash
-        name_clean = name.replace('*', '').replace('_', '').replace('`', '').replace('[', '').replace(']', '')
-        description_clean = description.replace('*', '').replace('_', '').replace('`', '').replace('[', '').replace(']', '')
-        
-        # Narxni formatlash
-        price_formatted = f"{price:,.0f} so'm"
-        
-        # Xabar matni
-        message = (
-            f"🏷️ **{name_clean}**\n\n"
-            f"💰 **Narxi:** {price_formatted}\n"
-            f"📝 **Tavsif:** {description_clean}\n\n"
-            f"📞 **Buyurtma berish:** @Operator_Kino_1985\n"
-            f"☎️ **Telefon:** +998(98)8882505\n\n"
-            f"📄 Sahifa {page + 1}/{total_pages}"
+    if not current_product:
+        await update.message.reply_text(
+            "❌ Mahsulot topilmadi!",
+            reply_markup=get_motobike_keyboard(user_id) if "MotoBike" in category else get_scooter_keyboard(user_id)
         )
-        
-        # Agar rasmlar bo'lsa
-        if photos:
-            try:
-                # Faqat birinchi rasmni yuboramiz
-                await update.message.reply_photo(
-                    photo=photos[0],
-                    caption=message,
-                    parse_mode='Markdown'
-                )
-                
-                # Agar ko'proq rasmlar bo'lsa
-                if len(photos) > 1:
-                    media_group = []
-                    for photo_id in photos[1:]:
-                        media_group.append(InputMediaPhoto(media=photo_id))
-                    
-                    if media_group:
-                        await update.message.reply_media_group(media=media_group)
-                        
-            except Exception as e:
-                logger.error(f"Rasm yuborishda xatolik: {e}")
-                await update.message.reply_text(
-                    f"📸 {message}\n\n⚠️ Rasm yuklashda xatolik",
-                    parse_mode='Markdown'
-                )
-        else:
-            # Rasmlar yo'q bo'lsa
-            await update.message.reply_text(
-                message,
+        return MAIN_MENU
+    
+    # Mahsulot ma'lumotlarini olish
+    product_id, prod_category, prod_subcategory, name, price, description, image, available = current_product
+    
+    # Rasmlarni o'qish
+    photos = []
+    if image and image != "[]" and image != "None" and image != "''" and image != '""':
+        try:
+            if isinstance(image, str):
+                photos = eval(image)
+            else:
+                photos = image
+        except Exception as e:
+            logger.error(f"Rasmlarni o'qishda xatolik: {e}, image: {image}")
+            photos = []
+    
+    # Matnni tozalash
+    name_clean = name.replace('*', '').replace('_', '').replace('`', '').replace('[', '').replace(']', '')
+    description_clean = description.replace('*', '').replace('_', '').replace('`', '').replace('[', '').replace(']', '')
+    
+    # Narxni formatlash
+    price_formatted = f"{price:,.0f} so'm"
+    
+    # Xabar matni
+    message = (
+        f"🏷️ **{name_clean}**\n\n"
+        f"💰 **Narxi:** {price_formatted}\n"
+        f"📝 **Tavsif:** {description_clean}\n\n"
+        f"📞 **Buyurtma berish:** @Operator_Kino_1985\n"
+        f"☎️ **Telefon:** +998(98)8882505\n\n"
+        f"📄 Sahifa {page + 1}/{total_pages}"
+    )
+    
+    # Agar rasmlar bo'lsa
+    if photos:
+        try:
+            # Faqat birinchi rasmni yuboramiz
+            await update.message.reply_photo(
+                photo=photos[0],
+                caption=message,
                 parse_mode='Markdown'
             )
+            
+            # Agar ko'proq rasmlar bo'lsa
+            if len(photos) > 1:
+                media_group = []
+                for photo_id in photos[1:]:
+                    media_group.append(InputMediaPhoto(media=photo_id))
+                
+                if media_group:
+                    await update.message.reply_media_group(media=media_group)
+                    
+        except Exception as e:
+            logger.error(f"Rasm yuborishda xatolik: {e}")
+            await update.message.reply_text(
+                f"📸 {message}\n\n⚠️ Rasm yuklashda xatolik",
+                parse_mode='Markdown'
+            )
+    else:
+        # Rasmlar yo'q bo'lsa
+        await update.message.reply_text(
+            message,
+            parse_mode='Markdown'
+        )
     
     # Sahifalash tugmalari
     pagination_keyboard = []
@@ -542,7 +549,7 @@ async def show_products(update: Update, context: ContextTypes.DEFAULT_TYPE, cate
     context.user_data['current_subcategory'] = subcategory
     
     # ✅ MODEGA QARAB QAYTISH:
-    if mode == "select" and current_product:
+    if mode == "select":
         # "Mahsulot tanlandi!" xabarini yuborish
         order_keyboard = [
             ["💰 To'lov qilish", "📦 Buyurtma berish"],
@@ -582,6 +589,11 @@ async def motobike_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     text = update.message.text
     
+    # DEBUG
+    print(f"DEBUG motobike_menu: text={text}")
+    print(f"DEBUG: context.user_data={context.user_data}")
+    
+    # 1. "Orqaga" ni tekshirish
     if text == "🔙 Orqaga":
         await update.message.reply_text(
             get_text(user_id, 'main_menu'),
@@ -589,14 +601,35 @@ async def motobike_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return MAIN_MENU
     
+    # 2. Sahifalash tugmalari
     elif text in ["⬅️ Oldingi sahifa", "Keyingi sahifa ➡️"]:
-        # Sahifalash uchun - mode="view"
         return await handle_pagination(update, context)
     
+    # 3. "To'lov qilish" va "Buyurtma berish" tugmalari
+    elif text in ["💰 To'lov qilish", "📦 Buyurtma berish"]:
+        # Mahsulot tanlash uchun - mode="select"
+        category = context.user_data.get('current_category')
+        subcategory = context.user_data.get('current_subcategory')
+        
+        if category:
+            # Mahsulotni tanlash rejimida ko'rsatish
+            return await show_products(update, context, category, subcategory, mode="select")
+        else:
+            # Agar kategoriya yo'q bo'lsa, oddiy ko'rish rejimida
+            await update.message.reply_text(
+                "❌ Iltimos, avval mahsulot tanlang!",
+                reply_markup=get_motobike_keyboard(user_id)
+            )
+            return MAIN_MENU
+    
+    # 4. Mahsulot kategoriyalari
     elif text in ["🛡️ Shlemlar", "👕 Moto Kiyimlar", "👞 Oyoq kiyimlari", 
                   "🦵 Oyoq Himoya", "🧤 Qo'lqoplar", "🎭 Yuz himoya"]:
         # Mahsulotlarni ko'rish uchun - mode="view"
         context.user_data['products_page'] = 0
+        context.user_data['current_category'] = "🏍️ MotoBike"
+        context.user_data['current_subcategory'] = text
+        
         return await show_products(update, context, "🏍️ MotoBike", text, mode="view")
     
     elif text == "🔧 MOTO EHTIYOT QISMLAR":
@@ -605,20 +638,6 @@ async def motobike_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=get_parts_keyboard(user_id)
         )
         return MAIN_MENU
-    
-    elif text in ["💰 To'lov qilish", "📦 Buyurtma berish"]:
-        # Mahsulot tanlash uchun - mode="select"
-        category = context.user_data.get('current_category')
-        subcategory = context.user_data.get('current_subcategory')
-        
-        if category:
-            return await show_products(update, context, category, subcategory, mode="select")
-        else:
-            await update.message.reply_text(
-                "❌ Iltimos, avval mahsulot tanlang!",
-                reply_markup=get_motobike_keyboard(user_id)
-            )
-            return MAIN_MENU
     
     else:
         await update.message.reply_text(
@@ -777,10 +796,30 @@ async def handle_back(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # handle_back funksiyasidan KEYIN:
 
 async def product_selected(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Mahsulot tanlanganida"""
+    """To'lov qilish yoki Buyurtma berish tugmalari bosilganda"""
     user_id = update.effective_user.id
     text = update.message.text
     
+    print(f"DEBUG product_selected: text={text}")
+    print(f"DEBUG: Has selected_product? {'selected_product' in context.user_data}")
+    
+    # Agar mahsulot tanlanmagan bo'lsa
+    if 'selected_product' not in context.user_data:
+        # Kategoriyani olish
+        category = context.user_data.get('current_category')
+        subcategory = context.user_data.get('current_subcategory')
+        
+        if category:
+            # Mahsulotni tanlash rejimida ko'rsatish
+            return await show_products(update, context, category, subcategory, mode="select")
+        else:
+            await update.message.reply_text(
+                "❌ Iltimos, avval mahsulot tanlang!",
+                reply_markup=get_main_menu_keyboard(user_id)
+            )
+            return MAIN_MENU
+    
+    # Agar mahsulot tanlangan bo'lsa
     if text == "💰 To'lov qilish":
         await update.message.reply_text(
             "💳 **To'lov usulini tanlang:**\n\n"
@@ -824,8 +863,15 @@ async def product_selected(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data.pop('selected_product', None)
         context.user_data.pop('selected_product_id', None)
         
-        await show_products(update, context, category)
-        return MAIN_MENU
+        if category:
+            await show_products(update, context, category, mode="view")
+            return MAIN_MENU
+        else:
+            await update.message.reply_text(
+                get_text(user_id, 'main_menu'),
+                reply_markup=get_main_menu_keyboard(user_id)
+            )
+            return MAIN_MENU
     
     return PRODUCT_SELECTED
 
@@ -1571,14 +1617,16 @@ def main():
                 MessageHandler(filters.Regex("^(🛡️ Shlemlar|👕 Moto Kiyimlar|👞 Oyoq kiyimlari|🦵 Oyoq Himoya|🧤 Qo'lqoplar|🎭 Yuz himoya|🔧 MOTO EHTIYOT QISMLAR)$"), motobike_menu),
                 MessageHandler(filters.Regex("^(⚙️ Sep|🛞 Disca|🦋 Parushka|🛑 Tormoz Ruchkasi|💡 Old Chiroq|🔴 Orqa Chiroq|🪑 O'tirgichlar|🔇 Glushitel|🎛️ Gaz Trosi|🔄 Sep Ruchkasi|⛽ Benzin baki|🔥 Svechalar|⚡ Babinalar|📦 Skores Karobka|🔄 Karburator|🛞 Apornik Disc|🛑 Klotkalar|🎨 Tunning Qismlari|📦 Boshqa Qismlari)$"), parts_menu),
                 MessageHandler(filters.Regex("^(⛽ Tank|🚀 H Max|⭐ Stell Max|⚔️ Samuray|🐅 Tiger|🔧 Barcha Qismlari)$"), scooter_menu),
-                MessageHandler(filters.Regex("^(⬅️ Oldingi sahifa|Keyingi sahifa ➡️)$"), handle_pagination),
-                MessageHandler(filters.Regex("^(💰 To'lov qilish|📦 Buyurtma berish)$"), product_selected),  # ✅ BU YERDA
+                
+                # ✅ "To'lov qilish" va "Buyurtma berish" tugmalarini QAYTA QO'SHAMIZ
+                MessageHandler(filters.Regex("^(💰 To'lov qilish|📦 Buyurtma berish)$"), product_selected),
+                
                 MessageHandler(filters.Regex("^(⬅️ Oldingi sahifa|Keyingi sahifa ➡️)$"), handle_pagination),
                 MessageHandler(filters.Regex("^(🔙 Orqaga)$"), handle_back),
                 MessageHandler(filters.TEXT & ~filters.COMMAND, main_menu)
             ],
             PRODUCT_SELECTED: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, product_selected)  # ✅ BU YERDA
+                MessageHandler(filters.TEXT & ~filters.COMMAND, product_selected)
             ],
             PAYMENT_CONFIRMATION: [
                 MessageHandler(filters.TEXT & ~filters.COMMAND, payment_confirmation),
