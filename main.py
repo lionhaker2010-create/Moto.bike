@@ -1,26 +1,15 @@
 import asyncio
 from datetime import datetime
-import asyncio
-from datetime import datetime
 import os
-from telegram import InputMediaPhoto
-import asyncio
-from datetime import datetime
-import asyncio
-from datetime import datetime
-import os
-from telegram import InputMediaPhoto
+import time
+import threading
+import requests
+from telegram import InputMediaPhoto, InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, ReplyKeyboardRemove
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, ConversationHandler, CallbackQueryHandler
+from database import db
+from keep_alive import keep_alive
 import logging
 from dotenv import load_dotenv
-from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove, Update
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, ConversationHandler
-from database import db
-from telegram import InlineKeyboardMarkup, InlineKeyboardButton
-from telegram.ext import CallbackQueryHandler
-from keep_alive import keep_alive
-
-# Serverni faol saqlash
-keep_alive()
 
 # .env faylini yuklash
 load_dotenv()
@@ -32,8 +21,41 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# ✅ ENDI keep_bot_awake() FUNKSIYASI (logger mavjud bo'lgach)
+def keep_bot_awake():
+    """Botni uxlatmaslik uchun background thread"""
+    def ping_loop():
+        while True:
+            try:
+                # Har 5 daqiqada ping yuborish
+                time.sleep(300)  # 300 soniya = 5 daqiqa
+                
+                # O'zimizga ping
+                try:
+                    # Render URL ni o'zgartiring agar boshqa bo'lsa
+                    bot_url = os.getenv('RENDER_URL', 'https://motobike-bot.onrender.com')
+                    response = requests.get(f"{bot_url}/ping", timeout=10)
+                    if response.status_code == 200:
+                        logger.info(f"✅ Bot ping muvaffaqiyatli: {response.text}")
+                    else:
+                        logger.warning(f"⚠️ Bot ping: {response.status_code}")
+                except Exception as e:
+                    logger.warning(f"⚠️ Bot ping xatolik: {e}")
+                    
+            except Exception as e:
+                logger.error(f"Ping loop xatolik: {e}")
+                time.sleep(60)  # Xatolik bo'lsa, 1 daqiqa kutish
+    
+    # Background thread ni ishga tushirish
+    ping_thread = threading.Thread(target=ping_loop)
+    ping_thread.daemon = True
+    ping_thread.start()
+    logger.info("✅ Bot uxlatmaslik tizimi ishga tushdi")
+
 # Conversation holatlari
 LANGUAGE, NAME, PHONE, LOCATION, MAIN_MENU, PRODUCT_SELECTED, PAYMENT_CONFIRMATION, WAITING_LOCATION = range(8)
+
+# ... qolgan kodlar ...
 
 # Til sozlamalari
 TEXTS = {
@@ -1585,38 +1607,6 @@ def get_pending_payments():
     
 # ==================== MAIN FUNCTION ====================
 
-# main.py faylida quyidagini qo'shing:
-
-# Botni uxlatmaslik uchun yangi funksiya
-def keep_bot_awake():
-    """Botni uxlatmaslik uchun background thread"""
-    import threading
-    import time
-    import requests
-    
-    def ping_loop():
-        while True:
-            try:
-                # Har 10 daqiqada ping yuborish
-                time.sleep(600)
-                
-                # O'zimizga ping
-                try:
-                    response = requests.get("https://motobike-bot.onrender.com/ping", timeout=10)
-                    logger.info(f"✅ Bot ping: {response.status_code}")
-                except Exception as e:
-                    logger.warning(f"⚠️ Bot ping xatolik: {e}")
-                    
-            except Exception as e:
-                logger.error(f"Ping loop xatolik: {e}")
-    
-    # Background thread ni ishga tushirish
-    ping_thread = threading.Thread(target=ping_loop)
-    ping_thread.daemon = True
-    ping_thread.start()
-    logger.info("✅ Bot uxlatmaslik tizimi ishga tushdi")
-
-# main() funksiyasida:
 def main():
     # Bot tokenini olish
     TOKEN = os.getenv('BOT_TOKEN')
@@ -1624,13 +1614,11 @@ def main():
         logger.error("BOT_TOKEN topilmadi! Environment variable ni tekshiring.")
         return
     
-    # ✅ BOTNI UXLAVMSLIK TIZIMINI ISHGA TUSHIRISH
+    # ✅ BOTNI UXLATMASLIK TIZIMINI ISHGA TUSHIRISH
     keep_bot_awake()
     
     # Bot ilovasini yaratish
     application = Application.builder().token(TOKEN).build()
-    
-    # ... qolgan kod o'zgarmaydi ...
     
     # 1. Avval ADMIN handlerini qo'shamiz
     from admin import get_admin_handler
@@ -1690,7 +1678,6 @@ def main():
     # Botni ishga tushirish
     application.run_polling()
 
-# main.py oxirida:
 if __name__ == '__main__':
     # Webhook emas, polling ishlatish
     try:
