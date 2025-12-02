@@ -1562,7 +1562,24 @@ def get_pending_payments():
         logger.error(f"Kutayotgan to'lovlarni olishda xatolik: {e}")
         return []
     finally:
-        conn.close()    
+        conn.close()   
+
+# main.py faylida quyidagini qo'shing:
+def start_web_server():
+    """Flask serverni background da ishga tushirish"""
+    import threading
+    import os
+    
+    def run_server():
+        from server import app
+        port = int(os.environ.get("PORT", 8080))
+        print(f"🌐 Web server starting on port {port}")
+        app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False)
+    
+    # Background thread da ishga tushirish
+    server_thread = threading.Thread(target=run_server, daemon=True)
+    server_thread.start()
+    print("✅ Web server started in background")        
     
 # ==================== MAIN FUNCTION ====================
 
