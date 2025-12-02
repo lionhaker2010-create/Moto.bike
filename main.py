@@ -1649,7 +1649,9 @@ def start_ping_loop():
     return ping_thread
         
 # ==================== MAIN FUNCTION ====================
+# ==================== MAIN FUNCTION ====================
 def main():
+    """Asosiy funksiya - polling rejimi"""
     # Bot tokenini olish
     TOKEN = os.getenv('BOT_TOKEN')
     if not TOKEN:
@@ -1664,8 +1666,6 @@ def main():
     
     # ✅ 2. PING LOOP NI ISHGA TUSHIRISH (30 SONIYA!)
     ping_thread = start_ping_loop()
-    
-    # Qolgan kodlar...
     
     # Bot ilovasini yaratish
     application = Application.builder().token(TOKEN).build()
@@ -1727,27 +1727,40 @@ def main():
     
     # ✅ YANGI: Connection paramlarini o'zgartiramiz
     application.run_polling(
-        poll_interval=1.0,  # Poll interval
-        timeout=30,  # Timeout
+        poll_interval=0.5,  # Poll interval (0.5 soniya)
+        timeout=60,         # Timeout (60 soniya)
         drop_pending_updates=True,
-        close_loop=False
+        close_loop=False,
+        allowed_updates=Update.ALL_TYPES
     )
 
 
-if __name__ == '__main__':
-    try:
-        main()
-    except KeyboardInterrupt:
-        logger.info("Bot to'xtatildi!")
-    except Exception as e:
-        logger.error(f"Botda xatolik: {e}")
-        import traceback
-        traceback.print_exc()
-        time.sleep(5)
-        main()
-        
-        # main.py faylida yangi funksiya qo'shamiz:
+def main_webhook():
+    """Webhook rejimi (agar kerak bo'lsa)"""
+    TOKEN = os.getenv('BOT_TOKEN')
+    
+    if not TOKEN:
+        logger.error("BOT_TOKEN topilmadi!")
+        return
+    
+    logger.info("🚀 Starting MotoBike Bot in webhook mode...")
+    
+    # Application yaratish
+    application = create_application(TOKEN)
+    
+    # Webhook o'rnatish
+    webhook_url = f"https://{os.getenv('RENDER_EXTERNAL_HOSTNAME')}/{TOKEN}"
+    
+    application.run_webhook(
+        listen="0.0.0.0",
+        port=int(os.environ.get("PORT", 8080)),
+        url_path=TOKEN,
+        webhook_url=webhook_url,
+        drop_pending_updates=True
+    )
 
+
+# ==================== CREATE APPLICATION FUNKSIYASI ====================
 def create_application(token):
     """Bot application yaratish (webhook uchun)"""
     application = Application.builder().token(token).build()
@@ -1805,31 +1818,64 @@ def create_application(token):
     application.add_handler(conv_handler)
     return application
 
-# main() funksiyasini o'zgartiramiz:
-def main():
-    """Webhook asosida ishlash"""
-    TOKEN = os.getenv('BOT_TOKEN')
+
+# ==================== START_WEB_SERVER FUNKSIYASI ====================
+def start_web_server():
+    """Flask serverni background da ishga tushirish"""
+    import threading
     
-    if not TOKEN:
-        logger.error("BOT_TOKEN topilmadi!")
-        return
+    def run_server():
+        try:
+            from server import app
+            port = int(os.environ.get("PORT", 8080))
+            logger.info(f"🌐 Flask server starting on port {port}")
+            app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False)
+        except Exception as e:
+            logger.error(f"❌ Flask server error: {e}")
     
-    logger.info("🚀 Starting MotoBike Bot in webhook mode...")
+    # Background thread da ishga tushirish
+    server_thread = threading.Thread(target=run_server, daemon=True)
+    server_thread.start()
+    logger.info("✅ Flask server started in background")
+    return server_thread
+
+
+# ==================== START_PING_LOOP FUNKSIYASI ====================
+def start_ping_loop():
+    """Ping loop ni ishga tushirish - HAR 30 SONIYADA!"""
+    import threading
     
-    # Application yaratish
-    application = create_application(TOKEN)
+    def ping_loop():
+        import time
+        import requests
+        while True:
+            time.sleep(30)  # ✅ BU MUHIM: 30 SONIYA
+            try:
+                port = os.environ.get("PORT", 8080)
+                response = requests.get(f"http://localhost:{port}/ping", timeout=5)
+                if response.status_code == 200 and "pong" in response.text:
+                    logger.info("✅ Ping successful")
+                else:
+                    logger.warning(f"⚠️ Ping failed: {response.status_code}")
+            except Exception as e:
+                logger.warning(f"⚠️ Ping error: {e}")
     
-    # Webhook o'rnatish
-    webhook_url = f"https://{os.getenv('RENDER_EXTERNAL_HOSTNAME')}/{TOKEN}"
-    
-    application.run_webhook(
-        listen="0.0.0.0",
-        port=int(os.environ.get("PORT", 8080)),
-        url_path=TOKEN,
-        webhook_url=webhook_url,
-        drop_pending_updates=True
-    )
+    ping_thread = threading.Thread(target=ping_loop, daemon=True)
+    ping_thread.start()
+    logger.info("✅ Ping loop started (every 30 seconds)")
+    return ping_thread
+
 
 if __name__ == '__main__':
-    main()
-    
+    try:
+        # Avval polling rejimida ishlatamiz
+        main()
+    except KeyboardInterrupt:
+        logger.info("Bot to'xtatildi!")
+    except Exception as e:
+        logger.error(f"Botda xatolik: {e}")
+        import traceback
+        traceback.print_exc()
+        time.sleep(5)
+        # Qayta urinib ko'ramiz
+        main()
