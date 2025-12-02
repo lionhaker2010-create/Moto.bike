@@ -1574,10 +1574,27 @@ def main():
         return
     
     # ✅ 1. FLASK SERVERNI ISHGA TUSHIRISH (KINO.BOT USULI)
-    start_web_server()
+    flask_thread = start_web_server()
     
-    # ✅ 2. BOTNI UXLATMASLIK TIZIMINI ISHGA TUSHIRISH
-    keep_bot_awake()
+    # ✅ 2. BOTNI UXLATMASLIK TIZIMINI ISHGA TUSHIRISH (ODDIY VERSIYA)
+    def simple_ping_loop():
+        import time
+        import requests
+        while True:
+            time.sleep(240)  # 4 daqiqa
+            try:
+                port = os.environ.get("PORT", 8080)
+                response = requests.get(f"http://localhost:{port}/ping", timeout=5)
+                if response.status_code == 200 and response.text == "🏓 pong":
+                    logger.info("✅ Self-ping successful")
+                else:
+                    logger.warning(f"⚠️ Self-ping failed: {response.status_code}")
+            except Exception as e:
+                logger.warning(f"⚠️ Self-ping error: {e}")
+    
+    ping_thread = threading.Thread(target=simple_ping_loop, daemon=True)
+    ping_thread.start()
+    logger.info("✅ Bot uxlatmaslik tizimi ishga tushdi")
     
     # Bot ilovasini yaratish
     application = Application.builder().token(TOKEN).build()
@@ -1639,6 +1656,7 @@ def main():
     logger.info(f"🌐 Web interface: http://localhost:{os.environ.get('PORT', 8080)}")
     logger.info("✅ Flask server ishga tushdi")
     logger.info("✅ Bot uxlatmaslik tizimi ishga tushdi")
+    logger.info("✅ Telegram bot ishga tushmoqda...")
     
     # Botni ishga tushirish
     application.run_polling()
