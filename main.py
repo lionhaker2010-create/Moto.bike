@@ -10,7 +10,7 @@ import logging
 # ✅ TELEGRAM BIBLIOTEKALARI
 from telegram import (
     Update,
-    InputMediaPhoto,
+    InputMediaPhoto,  # <-- BU IMPORT QO'SHILDI
     InlineKeyboardMarkup,
     InlineKeyboardButton,
     ReplyKeyboardMarkup,
@@ -442,9 +442,10 @@ async def main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     return MAIN_MENU
 
-# Mahsulotlarni ko'rsatish uchun funksiyalar
+# main.py faylida show_products funksiyasini o'zgartiramiz:
+
 async def show_products(update: Update, context: ContextTypes.DEFAULT_TYPE, category, subcategory=None, mode="view"):
-    """Mahsulotlarni ko'rsatish"""
+    """Mahsulotlarni ko'rsatish - BARCHA RASMLAR BIRGA"""
     user_id = update.effective_user.id
     products = db.get_products_by_category(category, subcategory)
     
@@ -474,14 +475,17 @@ async def show_products(update: Update, context: ContextTypes.DEFAULT_TYPE, cate
     # Mahsulot ma'lumotlari
     product_id, prod_category, prod_subcategory, name, price, description, image, available = current_product
     
-    # Rasmlarni o'qish
+    # Rasmlarni o'qish - BARCHA RASMLARNI OLAMIZ
     photos = []
     if image and image != "[]" and image != "None" and image != "''" and image != '""':
         try:
             if isinstance(image, str):
+                # String formatda bo'lsa, eval qilamiz
                 photos = eval(image)
             else:
                 photos = image
+            # Takrorlangan rasmlarni olib tashlaymiz
+            photos = list(set(photos)) if isinstance(photos, list) else [photos]
         except Exception as e:
             logger.error(f"Rasmlarni o'qishda xatolik: {e}")
             photos = []
@@ -503,23 +507,45 @@ async def show_products(update: Update, context: ContextTypes.DEFAULT_TYPE, cate
         f"📄 Sahifa {page + 1}/{total_pages}"
     )
     
-    # Rasmlarni yuborish
+    # ✅ YANGI: BARCHA RASMLARNI YUBORISH
     try:
         if photos:
-            await update.message.reply_photo(
-                photo=photos[0],
-                caption=message,
-                parse_mode='Markdown'
-            )
+            if len(photos) == 1:
+                # Agar faqat bitta rasm bo'lsa
+                await update.message.reply_photo(
+                    photo=photos[0],
+                    caption=message,
+                    parse_mode='Markdown'
+                )
+            else:
+                # Agar bir nechta rasm bo'lsa - MEDIA GROUP yaratamiz
+                media_group = []
+                
+                for i, photo_id in enumerate(photos):
+                    if i == 0:
+                        # Birinchi rasmga caption qo'shamiz
+                        media_group.append(InputMediaPhoto(
+                            media=photo_id,
+                            caption=message,
+                            parse_mode='Markdown'
+                        ))
+                    else:
+                        # Qolgan rasmlar
+                        media_group.append(InputMediaPhoto(media=photo_id))
+                
+                # Media group yuborish
+                await update.message.reply_media_group(media=media_group)
         else:
+            # Agar rasm bo'lmasa
             await update.message.reply_text(
                 message,
                 parse_mode='Markdown'
             )
+            
     except Exception as e:
         logger.error(f"Rasm yuborishda xatolik: {e}")
         await update.message.reply_text(
-            f"📸 {message}\n\n⚠️ Rasm yuklashda xatolik",
+            f"📸 {message}\n\n⚠️ Rasm yuklashda xatolik: {e}",
             parse_mode='Markdown'
         )
     
