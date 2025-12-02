@@ -17,10 +17,6 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters, C
 from database import db
 from telegram import InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import CallbackQueryHandler
-from keep_alive import keep_alive
-
-# Serverni faol saqlash
-keep_alive()
 
 # .env faylini yuklash
 load_dotenv()
@@ -1573,11 +1569,11 @@ def main():
         logger.error("BOT_TOKEN topilmadi! Environment variable ni tekshiring.")
         return
     
-    # ✅ 1. FLASK SERVERNI ISHGA TUSHIRISH (KINO.BOT USULI)
+    # ✅ 1. FLASK SERVERNI ISHGA TUSHIRISH
     flask_thread = start_web_server()
     
-    # ✅ 2. BOTNI UXLATMASLIK TIZIMINI ISHGA TUSHIRISH (ODDIY VERSIYA)
-    def simple_ping_loop():
+    # ✅ 2. ODDIY PING LOOP
+    def simple_ping():
         import time
         import requests
         while True:
@@ -1585,15 +1581,17 @@ def main():
             try:
                 port = os.environ.get("PORT", 8080)
                 response = requests.get(f"http://localhost:{port}/ping", timeout=5)
-                if response.status_code == 200 and response.text == "🏓 pong":
-                    logger.info("✅ Self-ping successful")
+                if response.status_code == 200 and "pong" in response.text:
+                    logger.info("✅ Ping successful")
                 else:
-                    logger.warning(f"⚠️ Self-ping failed: {response.status_code}")
+                    logger.warning(f"⚠️ Ping failed: {response.status_code}")
             except Exception as e:
-                logger.warning(f"⚠️ Self-ping error: {e}")
+                logger.warning(f"⚠️ Ping error: {e}")
     
-    ping_thread = threading.Thread(target=simple_ping_loop, daemon=True)
+    ping_thread = threading.Thread(target=simple_ping, daemon=True)
     ping_thread.start()
+    
+    # ... qolgan kod o'zgarmaydi ...
     logger.info("✅ Bot uxlatmaslik tizimi ishga tushdi")
     
     # Bot ilovasini yaratish
