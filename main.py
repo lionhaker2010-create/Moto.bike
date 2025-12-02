@@ -476,7 +476,7 @@ async def main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return MAIN_MENU
 
 # Mahsulotlarni ko'rsatish uchun funksiyalar
-async def show_products(update: Update, context: ContextTypes.DEFAULT_TYPE, category, subcategory=None):
+async def show_products(update: Update, context: ContextTypes.DEFAULT_TYPE, category, subcategory=None, mode="view"):
     """Mahsulotlarni ko'rsatish"""
     user_id = update.effective_user.id
     products = db.get_products_by_category(category, subcategory)
@@ -599,7 +599,10 @@ async def show_products(update: Update, context: ContextTypes.DEFAULT_TYPE, cate
     if page < total_pages - 1:
         pagination_keyboard.append(["Keyingi sahifa ➡️"])
     
-    pagination_keyboard.append(["🛒 Mahsulotni tanlash"])
+    # Agar "view" mode bo'lsa "Mahsulotni tanlash" tugmasini qo'shamiz
+    if mode == "view":
+        pagination_keyboard.append(["🛒 Mahsulotni tanlash"])
+    
     pagination_keyboard.append(["🔙 Orqaga"])
     
     # Sahifalash tugmalarini yuborish
@@ -684,15 +687,15 @@ async def motobike_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # 3. "To'lov qilish" va "Buyurtma berish" tugmalari
     elif text in ["💰 To'lov qilish", "📦 Buyurtma berish"]:
-        # Mahsulot tanlash uchun - mode="select"
+        # Mahsulot tanlash uchun - faqat ko'rish rejimida
         category = context.user_data.get('current_category')
         subcategory = context.user_data.get('current_subcategory')
         
         if category:
-            # Mahsulotni tanlash rejimida ko'rsatish
-            return await show_products(update, context, category, subcategory, mode="select")
+            # Mahsulotlarni ko'rish rejimida ko'rsatish
+            return await show_products(update, context, category, subcategory)
         else:
-            # Agar kategoriya yo'q bo'lsa, oddiy ko'rish rejimida
+            # Agar kategoriya yo'q bo'lsa
             await update.message.reply_text(
                 "❌ Iltimos, avval mahsulot tanlang!",
                 reply_markup=get_motobike_keyboard(user_id)
@@ -702,12 +705,12 @@ async def motobike_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # 4. Mahsulot kategoriyalari
     elif text in ["🛡️ Shlemlar", "👕 Moto Kiyimlar", "👞 Oyoq kiyimlari", 
                   "🦵 Oyoq Himoya", "🧤 Qo'lqoplar", "🎭 Yuz himoya"]:
-        # Mahsulotlarni ko'rish uchun - mode="view"
+        # Mahsulotlarni ko'rish uchun
         context.user_data['products_page'] = 0
         context.user_data['current_category'] = "🏍️ MotoBike"
         context.user_data['current_subcategory'] = text
         
-        return await show_products(update, context, "🏍️ MotoBike", text, mode="view")
+        return await show_products(update, context, "🏍️ MotoBike", text)
     
     elif text == "🔧 MOTO EHTIYOT QISMLAR":
         await update.message.reply_text(
