@@ -28,7 +28,7 @@ from telegram.ext import (
 
 # ✅ LOYIHA FAYLLARI
 from database import db
-# from keep_alive import keep_alive  <- BU QATORNI O'CHIRING!
+from render_keepalive import keep_alive
 from dotenv import load_dotenv
 
 # ==================== ENVIRONMENT & LOGGING ====================
@@ -1649,24 +1649,61 @@ def start_ping_loop():
     return ping_thread
         
 # ==================== MAIN FUNCTION ====================
-# ==================== MAIN FUNCTION ====================
+# main.py faylining eng oxirgi qismi:
+
+# ==================== MAIN FUNCTION (YAGONA VERSIYA) ====================
 def main():
-    """Asosiy funksiya - polling rejimi"""
-    # Bot tokenini olish
+    """Asosiy funksiya - polling rejimi (YAGONA VERSIYA)"""
     TOKEN = os.getenv('BOT_TOKEN')
     if not TOKEN:
         logger.error("BOT_TOKEN topilmadi! Environment variable ni tekshiring.")
         return
     
     logger.info("🚀 Starting MotoBike Bot...")
-    logger.info(f"🌐 Port: {os.environ.get('PORT', 8080)}")
     
     # ✅ 1. FLASK SERVERNI ISHGA TUSHIRISH
-    flask_thread = start_web_server()
+    def start_flask():
+        try:
+            from server import app
+            port = int(os.environ.get("PORT", 8080))
+            logger.info(f"🌐 Flask server starting on port {port}")
+            app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False)
+        except Exception as e:
+            logger.error(f"❌ Flask server error: {e}")
     
-    # ✅ 2. PING LOOP NI ISHGA TUSHIRISH (30 SONIYA!)
-    ping_thread = start_ping_loop()
+    flask_thread = threading.Thread(target=start_flask, daemon=True)
+    flask_thread.start()
+    logger.info("✅ Flask server started")
     
+    # ✅ 2. KEEP-ALIVE PING LOOP (25 SONIYA!)
+    def keep_alive_ping():
+        import time
+        import requests
+        while True:
+            time.sleep(25)  # 25 soniya - RENDER uchun optimal
+            try:
+                # Local server ping
+                port = os.environ.get("PORT", 8080)
+                requests.get(f"http://localhost:{port}/ping", timeout=5)
+                logger.debug("✅ Ping sent to local server")
+                
+                # External ping (agar mavjud bo'lsa)
+                external_host = os.getenv('RENDER_EXTERNAL_HOSTNAME')
+                if external_host and 'localhost' not in external_host:
+                    try:
+                        requests.get(f"https://{external_host}/ping", timeout=10)
+                        logger.debug("✅ Ping sent to external server")
+                    except:
+                        pass
+                        
+            except Exception as e:
+                logger.warning(f"⚠️ Ping error: {e}")
+    
+    ping_thread = threading.Thread(target=keep_alive_ping, daemon=True)
+    ping_thread.start()
+    logger.info("✅ Keep-alive ping loop started (every 25 seconds)")
+    
+    # ✅ 3. ASOSIY BOTNI ISHGA TUSHIRISH
     # Bot ilovasini yaratish
     application = Application.builder().token(TOKEN).build()
     
@@ -1722,19 +1759,29 @@ def main():
     
     application.add_handler(conv_handler)
     
-    logger.info("✅ All systems started")
+    logger.info("✅ All handlers added")
     logger.info("🤖 Starting Telegram bot polling...")
     
-    # ✅ YANGI: Connection paramlarini o'zgartiramiz
-    application.run_polling(
-        poll_interval=0.5,  # Poll interval (0.5 soniya)
-        timeout=60,         # Timeout (60 soniya)
-        drop_pending_updates=True,
-        close_loop=False,
-        allowed_updates=Update.ALL_TYPES
-    )
+    # ✅ Optimize polling parameters for Render
+    try:
+        application.run_polling(
+            poll_interval=1.0,        # 1 second poll interval
+            timeout=30,               # 30 second timeout
+            drop_pending_updates=True,
+            close_loop=False,
+            allowed_updates=Update.ALL_TYPES,
+            read_timeout=7,          # 7 second read timeout
+            write_timeout=7,         # 7 second write timeout
+            connect_timeout=7        # 7 second connect timeout
+        )
+    except Exception as e:
+        logger.error(f"❌ Polling error: {e}")
+        # Try restarting after 10 seconds
+        time.sleep(10)
+        main()
 
 
+# ==================== WEBHOOK FUNCTION (OPTIONAL) ====================
 def main_webhook():
     """Webhook rejimi (agar kerak bo'lsa)"""
     TOKEN = os.getenv('BOT_TOKEN')
@@ -1760,115 +1807,10 @@ def main_webhook():
     )
 
 
-# ==================== CREATE APPLICATION FUNKSIYASI ====================
-def create_application(token):
-    """Bot application yaratish (webhook uchun)"""
-    application = Application.builder().token(token).build()
-    
-    # 1. Avval ADMIN handlerini qo'shamiz
-    from admin import get_admin_handler
-    application.add_handler(get_admin_handler())
-    
-    # 2. Callback query handler qo'shamiz
-    application.add_handler(CallbackQueryHandler(handle_callback_query))
-    
-    # 3. Conversation handler
-    conv_handler = ConversationHandler(
-        entry_points=[CommandHandler('start', start)],
-        states={
-            LANGUAGE: [MessageHandler(filters.TEXT & ~filters.COMMAND, choose_language)],
-            NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_name)],
-            PHONE: [MessageHandler(filters.CONTACT | (filters.TEXT & ~filters.COMMAND), get_phone)],
-            LOCATION: [MessageHandler(filters.LOCATION | (filters.TEXT & ~filters.COMMAND), get_location)],
-            MAIN_MENU: [
-                MessageHandler(filters.Regex("^(🏍️ MotoBike|🛵 Scooter|⚡ Electric Scooter Arenda)$"), main_menu),
-                MessageHandler(filters.Regex("^(🛡️ Shlemlar|👕 Moto Kiyimlar|👞 Oyoq kiyimlari|🦵 Oyoq Himoya|🧤 Qo'lqoplar|🎭 Yuz himoya|🔧 MOTO EHTIYOT QISMLAR)$"), motobike_menu),
-                MessageHandler(filters.Regex("^(⚙️ Sep|🛞 Disca|🦋 Parushka|🛑 Tormoz Ruchkasi|💡 Old Chiroq|🔴 Orqa Chiroq|🪑 O'tirgichlar|🔇 Glushitel|🎛️ Gaz Trosi|🔄 Sep Ruchkasi|⛽ Benzin baki|🔥 Svechalar|⚡ Babinalar|📦 Skores Karobka|🔄 Karburator|🛞 Apornik Disc|🛑 Klotkalar|🎨 Tunning Qismlari|📦 Boshqa Qismlari)$"), parts_menu),
-                MessageHandler(filters.Regex("^(⛽ Tank|🚀 H Max|⭐ Stell Max|⚔️ Samuray|🐅 Tiger|🔧 Barcha Qismlari)$"), scooter_menu),
-                
-                # ✅ SAHIFALASH VA TANLASH TUGMALARI
-                MessageHandler(filters.Regex("^(⬅️ Oldingi sahifa|Keyingi sahifa ➡️)$"), handle_pagination),
-                MessageHandler(filters.Regex("^(🛒 Mahsulotni tanlash)$"), select_product),
-                
-                # ✅ "TO'LOV QILISH" VA "BUYURTMA BERISH" TUGMALARI
-                MessageHandler(filters.Regex("^(💰 To'lov qilish|📦 Buyurtma berish)$"), product_selected),
-                
-                # ✅ "ORQAGA" TUGMASI
-                MessageHandler(filters.Regex("^(🔙 Orqaga)$"), handle_back),
-                
-                # Fallback
-                MessageHandler(filters.TEXT & ~filters.COMMAND, main_menu)
-            ],
-            PRODUCT_SELECTED: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, product_selected)
-            ],
-            PAYMENT_CONFIRMATION: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, payment_confirmation),
-                MessageHandler(filters.PHOTO, payment_confirmation)
-            ],
-            WAITING_LOCATION: [
-                MessageHandler(filters.LOCATION, waiting_location),
-                MessageHandler(filters.TEXT & ~filters.COMMAND, waiting_location)
-            ],
-        },
-        fallbacks=[CommandHandler('start', start)],
-        allow_reentry=True
-    )
-    
-    application.add_handler(conv_handler)
-    return application
-
-
-# ==================== START_WEB_SERVER FUNKSIYASI ====================
-def start_web_server():
-    """Flask serverni background da ishga tushirish"""
-    import threading
-    
-    def run_server():
-        try:
-            from server import app
-            port = int(os.environ.get("PORT", 8080))
-            logger.info(f"🌐 Flask server starting on port {port}")
-            app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False)
-        except Exception as e:
-            logger.error(f"❌ Flask server error: {e}")
-    
-    # Background thread da ishga tushirish
-    server_thread = threading.Thread(target=run_server, daemon=True)
-    server_thread.start()
-    logger.info("✅ Flask server started in background")
-    return server_thread
-
-
-# ==================== START_PING_LOOP FUNKSIYASI ====================
-def start_ping_loop():
-    """Ping loop ni ishga tushirish - HAR 30 SONIYADA!"""
-    import threading
-    
-    def ping_loop():
-        import time
-        import requests
-        while True:
-            time.sleep(30)  # ✅ BU MUHIM: 30 SONIYA
-            try:
-                port = os.environ.get("PORT", 8080)
-                response = requests.get(f"http://localhost:{port}/ping", timeout=5)
-                if response.status_code == 200 and "pong" in response.text:
-                    logger.info("✅ Ping successful")
-                else:
-                    logger.warning(f"⚠️ Ping failed: {response.status_code}")
-            except Exception as e:
-                logger.warning(f"⚠️ Ping error: {e}")
-    
-    ping_thread = threading.Thread(target=ping_loop, daemon=True)
-    ping_thread.start()
-    logger.info("✅ Ping loop started (every 30 seconds)")
-    return ping_thread
-
-
+# ==================== ENTRY POINT ====================
 if __name__ == '__main__':
     try:
-        # Avval polling rejimida ishlatamiz
+        # Use polling mode for Render
         main()
     except KeyboardInterrupt:
         logger.info("Bot to'xtatildi!")
@@ -1876,6 +1818,6 @@ if __name__ == '__main__':
         logger.error(f"Botda xatolik: {e}")
         import traceback
         traceback.print_exc()
-        time.sleep(5)
-        # Qayta urinib ko'ramiz
-        main()
+        # Wait and restart
+        time.sleep(10)
+        main()    
