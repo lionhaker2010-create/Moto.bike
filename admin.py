@@ -26,13 +26,13 @@ def get_currency_keyboard():
         ["🔙 Orqaga"]
     ], resize_keyboard=True)
 
-# Admin tugmalari
 def get_admin_keyboard():
     return ReplyKeyboardMarkup([
         ["📦 Mahsulot Qo'shish", "🗑️ Mahsulot O'chirish"],
         ["👥 Foydalanuvchilar", "📊 Statistika"],
         ["🚫 Bloklash", "✅ Blokdan Ochish"],
         ["📋 Buyurtmalarni Boshqarish", "💰 To'lovlarni Boshqarish"],
+        ["📢 Xabar Yuborish", "📞 Birga Bog'lanish"],  # ✅ YANGI TUGMA
         ["🔴 Admin Paneldan Chiqish"]
     ], resize_keyboard=True)
 
@@ -1227,6 +1227,8 @@ async def mark_fake_payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ==================== ADMIN ASOSIY MENYUSI ====================
 
+# admin.py faylida admin_main funksiyasi ichida
+
 async def admin_main(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     
@@ -1320,7 +1322,57 @@ async def admin_main(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data.clear()
         return ADMIN_MAIN
     
-    # 3. ACTION handler (bloklash, bog'lanish)
+    # 3. BROADCAST XABAR bosqichi
+    elif context.user_data.get('action') == 'broadcast_message':
+        # Bu yerda faqat context.user_data['broadcast_message'] ni saqlaymiz
+        # Haqiqiy yuborish keyinroq
+        context.user_data['broadcast_message'] = text
+        
+        # Tasdiqlash so'raymiz
+        await update.message.reply_text(
+            f"⚠️ **BARCHA FOYDALANUVCHILARGA XABAR YUBORISH** ⚠️\n\n"
+            f"📝 **Xabar matni:**\n{text}\n\n"
+            f"📊 **Foydalanuvchilar soni:** {len(db.get_all_users())} ta\n\n"
+            f"❓ **Rostdan ham barcha foydalanuvchilarga shu xabarni yubormoqchimisiz?**",
+            reply_markup=ReplyKeyboardMarkup([
+                ["✅ HA, Yuborish", "❌ Yo'q, Bekor qilish"]
+            ], resize_keyboard=True),
+            parse_mode='Markdown'
+        )
+        context.user_data['action'] = 'confirm_broadcast'
+        return ADMIN_MAIN
+    
+    # 4. BROADCAST TASDIQLASH
+    elif context.user_data.get('action') == 'confirm_broadcast':
+        if text == "✅ HA, Yuborish":
+            message_text = context.user_data.get('broadcast_message', '')
+            
+            if not message_text:
+                await update.message.reply_text(
+                    "❌ **Xabar matni topilmadi!**",
+                    reply_markup=get_admin_keyboard(),
+                    parse_mode='Markdown'
+                )
+                context.user_data.clear()
+                return ADMIN_MAIN
+            
+            # Xabarni yuborishni boshlaymiz
+            await process_broadcast_message(update, context, message_text)
+            
+            # User datani tozalash
+            context.user_data.clear()
+            return ADMIN_MAIN
+            
+        elif text == "❌ Yo'q, Bekor qilish":
+            await update.message.reply_text(
+                "✅ **Xabar yuborish bekor qilindi!**",
+                reply_markup=get_admin_keyboard(),
+                parse_mode='Markdown'
+            )
+            context.user_data.clear()
+            return ADMIN_MAIN
+    
+    # 5. ACTION handler (bloklash, bog'lanish)
     elif 'action' in context.user_data:
         action = context.user_data['action']
         
@@ -1363,7 +1415,7 @@ async def admin_main(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return ADMIN_MAIN
     
-    # 4. Asosiy menyu tugmalari
+    # 6. Asosiy menyu tugmalari - BU YERGA QO'SHAMIZ! ⬇️
     elif text == "📦 Mahsulot Qo'shish":
         return await start_add_product(update, context)
     
@@ -1371,7 +1423,7 @@ async def admin_main(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return await start_delete_product(update, context)
     
     elif text == "👥 Foydalanuvchilar":
-        return await show_users_list(update, context)  # Yangi funksiya
+        return await show_users_list(update, context)
     
     elif text == "📊 Statistika":
         total_users = len(db.get_all_users())
@@ -1442,6 +1494,10 @@ async def admin_main(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode='Markdown'
         )
         context.user_data['action'] = 'contact_customer'
+    
+    # ✅ BU YERGA YANGI TUGMANI QO'SHAMIZ! ⬇️
+    elif text == "📢 Xabar Yuborish":
+        return await send_broadcast_message(update, context)
     
     elif text == "⬅️ Oldingi sahifa":
         page = context.user_data.get('users_page', 0)
@@ -1604,6 +1660,97 @@ async def show_users_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=get_admin_keyboard(),
             parse_mode='Markdown'
         )
+        
+# Xabar yuborish tugmasini qo'shish
+async def send_broadcast_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Barcha foydalanuvchilarga xabar yuborish"""
+    user_id = update.effective_user.id
+    
+    if not is_admin(user_id):
+        await update.message.reply_text("❌ Siz admin emassiz!")
+        return ConversationHandler.END
+    
+    context.user_data['action'] = 'broadcast_message'
+    
+    await update.message.reply_text(
+        "📢 **Barcha foydalanuvchilarga xabar yuborish**\n\n"
+        "Xabar matnini kiriting:\n\n"
+        "❗ **Diqqat:** Bu xabar BARCHA foydalanuvchilarga yuboriladi!",
+        reply_markup=ReplyKeyboardMarkup([["❌ Bekor qilish"]], resize_keyboard=True),
+        parse_mode='Markdown'
+    )
+    return ADMIN_MAIN      
+
+# admin.py faylida yangi funksiya:
+async def process_broadcast_message(update: Update, context: ContextTypes.DEFAULT_TYPE, message_text):
+    """Barcha foydalanuvchilarga xabar yuborish"""
+    user_id = update.effective_user.id
+    
+    if not is_admin(user_id):
+        await update.message.reply_text("❌ Siz admin emassiz!")
+        return
+    
+    # Barcha foydalanuvchilarni olish
+    all_users = db.get_all_users()
+    total_users = len(all_users)
+    successful = 0
+    failed = 0
+    
+    # Progress xabari
+    progress_msg = await update.message.reply_text(
+        f"📤 **Xabar yuborilmoqda...**\n\n"
+        f"📊 Jami foydalanuvchilar: {total_users}\n"
+        f"✅ Muvaffaqiyatli: 0\n"
+        f"❌ Xatolik: 0"
+    )
+    
+    # Har bir foydalanuvchiga xabar yuborish
+    for i, user in enumerate(all_users):
+        try:
+            target_user_id = user[0]  # user_id maydoni
+            
+            # Xabarni yuborish
+            await context.bot.send_message(
+                chat_id=target_user_id,
+                text=message_text,
+                parse_mode='Markdown'
+            )
+            successful += 1
+            
+            # Har 10 ta xabardan keyin progress yangilash
+            if (i + 1) % 10 == 0 or (i + 1) == total_users:
+                await context.bot.edit_message_text(
+                    chat_id=update.effective_chat.id,
+                    message_id=progress_msg.message_id,
+                    text=f"📤 **Xabar yuborilmoqda...**\n\n"
+                         f"📊 Jami foydalanuvchilar: {total_users}\n"
+                         f"📨 Yuborildi: {i + 1}/{total_users}\n"
+                         f"✅ Muvaffaqiyatli: {successful}\n"
+                         f"❌ Xatolik: {failed}"
+                )
+                await asyncio.sleep(0.5)  # Rate limit uchun
+        
+        except Exception as e:
+            failed += 1
+            logger.error(f"Xabar yuborishda xatolik user_id={target_user_id}: {e}")
+    
+    # Yakuniy xabar
+    await context.bot.edit_message_text(
+        chat_id=update.effective_chat.id,
+        message_id=progress_msg.message_id,
+        text=f"✅ **Xabar yuborish yakunlandi!**\n\n"
+             f"📊 Jami foydalanuvchilar: {total_users}\n"
+             f"✅ Muvaffaqiyatli: {successful}\n"
+             f"❌ Xatolik: {failed}\n\n"
+             f"📈 Muvaffaqiyat: {successful/total_users*100:.1f}%"
+    )
+    
+    # Admin panelga qaytish
+    await update.message.reply_text(
+        "👨‍💼 **Admin Panel**",
+        reply_markup=get_admin_keyboard(),
+        parse_mode='Markdown'
+    )    
 
 # Admin handlerini qaytarish funksiyasi
 def get_admin_handler():
