@@ -1878,6 +1878,7 @@ def main_webhook():
 
 
 # ==================== ENTRY POINT ====================
+# ==================== ENTRY POINT ====================
 if __name__ == '__main__':
     try:
         # Use polling mode for Render
@@ -1890,9 +1891,9 @@ if __name__ == '__main__':
         traceback.print_exc()
         # Wait and restart
         time.sleep(10)
-        main()   
+        main()  
 
-  logger.info("🤖 Starting Telegram bot polling...")
+      logger.info("🤖 Starting Telegram bot polling...")
     
     try:
         application.run_polling(

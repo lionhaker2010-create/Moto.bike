@@ -1,17 +1,24 @@
-"version: 1" 
-"services:" 
-"  - name: motobike-bot" 
-"    type: web" 
-"    env: python" 
-"    plan: free" 
-"    buildCommand: pip install -r requirements.txt" 
-"    startCommand: python main.py" 
-"    envVars:" 
-"      - key: BOT_TOKEN" 
-"        value: your_bot_token_here" 
-"      - key: ADMIN_ID" 
-"        value: \"8083596990\"" 
-"      - key: PORT" 
-"        value: \"8080\"" 
-"      - key: RENDER" 
-"        value: \"true\"" 
+# render.yaml
+services:
+  - type: web
+    name: moto-bike-bot-persistent
+    env: python
+    buildCommand: |
+      pip install -r requirements.txt
+      echo "✅ Packages installed"
+    startCommand: |
+      python -c "from restore_9_users import restore_users; restore_users()"
+      python main.py
+    disk:
+      name: motobike-persistent-storage
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: BOT_TOKEN
+        sync: false
+      - key: ADMIN_ID
+        sync: false
+      - key: RENDER
+        value: "true"
+    healthCheckPath: /ping
+    autoDeploy: true

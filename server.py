@@ -162,3 +162,18 @@ if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
     logger.info(f"🚀 Flask server starting on port {port}")
     app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False)
+       
+# server.py ga qo'shing:
+@app.route('/messenger/status')
+def messenger_status():
+    if multilang_messenger:
+        tashkent_time = multilang_messenger.get_tashkent_time()
+        return jsonify({
+            "status": "running" if multilang_messenger.running else "stopped",
+            "timezone": "Asia/Tashkent",
+            "current_time": tashkent_time.strftime('%Y-%m-%d %H:%M:%S'),
+            "next_messages": ["08:00", "14:00", "20:00"],
+            "languages": ["uz", "ru", "en"],
+            "month": "December 2025"
+        })
+    return jsonify({"status": "not_initialized"})    
