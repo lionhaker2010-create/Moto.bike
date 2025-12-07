@@ -270,7 +270,78 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             get_text(user_id, 'welcome'),
             reply_markup=get_language_keyboard()
         )
+        return LANGUAGEasync def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    user_id = user.id
+    
+    # ✅ USER DATANI TOZALASH
+    context.user_data.clear()
+    
+    # ✅ AVVAL ADMIN TEKSHIRISH
+    try:
+        from admin import is_admin
+        if is_admin(user_id):
+            from admin import admin_start
+            return await admin_start(update, context)
+    except Exception as e:
+        logger.error(f"Admin tekshirishda xatolik: {e}")
+    
+    # ✅ FOYDALANUVCHINI BAZAGA QO'SHISH VA DEFAULT TIL
+    db.add_user(user_id, user.first_name)
+    db.update_user(user_id, language='uz')  # Default til uz
+    
+    # ✅ BLOKLASH TEKSHIRISH
+    user_data = db.get_user(user_id)
+    if user_data and len(user_data) >= 8 and user_data[7]:  # blocked maydoni
+        await update.message.reply_text(
+            "❌ **Siz bloklangansiz!**\n\n"
+            "Botdan foydalanish huquqingiz cheklangan.\n"
+            "Admin bilan bog'laning: @Operator_Kino_1985\n"
+            "Yoki telefon: +998(98)8882505",
+            reply_markup=ReplyKeyboardRemove()
+        )
+        return ConversationHandler.END
+    
+    # ✅ HECH QANDAY "ORQAGA" TUGMASIZ RO'YXATDAN O'TISH
+    # Faqat ro'yxatdan o'tganlar asosiy menyuga o'tishi mumkin
+    if db.is_registered(user_id):
+        user_data = db.get_user(user_id)
+        welcome_text = get_text(user_id, 'welcome_back', name=user_data[1])
+        await update.message.reply_text(
+            welcome_text,
+            reply_markup=get_main_menu_keyboard(user_id)
+        )
+        return MAIN_MENU
+    else:
+        # Ro'yxatdan o'tish jarayoni - ORQAGA TUGMASIZ
+        await update.message.reply_text(
+            "🔐 **Ro'yxatdan o'tish majburiy!**\n\n"
+            "Botdan to'liq foydalanish uchun ro'yxatdan o'tishingiz kerak.\n\n"
+            "🌐 **Tilni tanlang:**",
+            reply_markup=get_language_keyboard_no_back()  # ✅ YANGI: Orqaga tugmasiz
+        )
         return LANGUAGE
+
+
+def get_language_keyboard_no_back():
+    """Orqaga tugmasiz til tanlash klaviaturasi"""
+    return ReplyKeyboardMarkup([
+        ["🇺🇿 O'zbek", "🇷🇺 Русский", "🇺🇸 English"]
+    ], resize_keyboard=True, one_time_keyboard=True)
+
+
+def get_phone_keyboard_no_back():
+    """Orqaga tugmasiz telefon klaviaturasi"""
+    return ReplyKeyboardMarkup([
+        [{"text": "📞 Telefon raqamni yuborish", "request_contact": True}]
+    ], resize_keyboard=True, one_time_keyboard=True)
+
+
+def get_location_keyboard_no_back():
+    """Orqaga tugmasiz joylashuv klaviaturasi"""
+    return ReplyKeyboardMarkup([
+        [{"text": "📍 Joylashuvni yuborish", "request_location": True}]
+    ], resize_keyboard=True, one_time_keyboard=True)
 
 # LANGUAGE funksiyasini o'zgartiramiz:
 async def choose_language(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -284,28 +355,25 @@ async def choose_language(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif "English" in text or "🇺🇸" in text:
         language = 'en'
     else:
-        # ✅ DEFAULT TIL UZBEKCHA
         language = 'uz'
     
-    # Foydalanuvchi tilini saqlash
     db.update_user(user_id, language=language)
     
-    # Agar ro'yxatdan o'tgan bo'lsa
-    if db.is_registered(user_id):
+    # Faqat ro'yxatdan o'tmagan bo'lsa
+    if not db.is_registered(user_id):
+        await update.message.reply_text(
+            get_text(user_id, 'enter_name'),
+            reply_markup=ReplyKeyboardRemove()  # Orqaga tugmasiz
+        )
+        return NAME
+    else:
         await update.message.reply_text(
             get_text(user_id, 'language_changed'),
             reply_markup=get_main_menu_keyboard(user_id)
         )
         return MAIN_MENU
-    else:
-        # Ro'yxatdan o'tmagan bo'lsa
-        await update.message.reply_text(
-            get_text(user_id, 'enter_name'),
-            reply_markup=ReplyKeyboardRemove()
-        )
-        return NAME
 
-# Ism qabul qilish
+
 async def get_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     name = update.message.text
     user_id = update.effective_user.id
@@ -313,11 +381,11 @@ async def get_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     db.update_user(user_id, first_name=name)
     await update.message.reply_text(
         get_text(user_id, 'enter_phone'),
-        reply_markup=get_phone_keyboard()
+        reply_markup=get_phone_keyboard_no_back()  # ✅ Orqaga tugmasiz
     )
     return PHONE
 
-# Telefon raqam qabul qilish
+
 async def get_phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     
@@ -329,11 +397,11 @@ async def get_phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
     db.update_user(user_id, phone=phone)
     await update.message.reply_text(
         get_text(user_id, 'share_location'),
-        reply_markup=get_location_keyboard()
+        reply_markup=get_location_keyboard_no_back()  # ✅ Orqaga tugmasiz
     )
     return LOCATION
 
-# Joylashuv qabul qilish
+
 async def get_location(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     
@@ -360,7 +428,8 @@ async def get_location(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     await context.bot.delete_message(chat_id=update.effective_chat.id, message_id=checking_msg.message_id)
     await update.message.reply_text(
-        get_text(user_id, 'registration_success'),
+        "✅ **Tabriklaymiz! Ro'yxatdan o'tdingiz!**\n\n"
+        "Endi botning barcha funksiyalaridan foydalanishingiz mumkin.",
         reply_markup=get_main_menu_keyboard(user_id)
     )
     return MAIN_MENU
@@ -433,24 +502,28 @@ async def send_registration_notification_to_admin(update: Update, context: Conte
 async def main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     
-    # ✅ AVVAL RO'YXATDAN O'TISH TEKSHIRISH
+    # ✅ RO'YXATDAN O'TISHNI MAJBURIY TEKSHIRISH
     if not db.is_registered(user_id):
         await update.message.reply_text(
-            "❌ **Siz ro'yxatdan o'tmagansiz!**\n\n"
-            "Botdan to'liq foydalanish uchun ro'yxatdan o'tishingiz kerak.\n"
-            "Ro'yxatdan o'tish uchun /start buyrug'ini yuboring.",
-            reply_markup=ReplyKeyboardRemove()
+            "🔐 **Siz ro'yxatdan o'tmagansiz!**\n\n"
+            "Botdan foydalanish uchun ro'yxatdan o'tishingiz kerak.\n\n"
+            "Ro'yxatdan o'tish uchun /start buyrug'ini yuboring.\n"
+            "Yoki quyidagi tugmani bosing:",
+            reply_markup=ReplyKeyboardMarkup([
+                ["/start"]
+            ], resize_keyboard=True)
         )
         return ConversationHandler.END
     
+    # ✅ RO'YXATDAN O'TGAN FOYDALANUVCHI UCHUN MENYU
     text = update.message.text
     
-    # ✅ RO'YXATDAN O'TGAN FOYDALANUVCHI UCHUN MENYU
     if "MotoBike" in text:
         await update.message.reply_text(
             "🏍️ MotoBike bo'limi:",
             reply_markup=get_motobike_keyboard(user_id)
         )
+    # ... qolgan kod ...
     elif "Scooter" in text:
         await update.message.reply_text(
             "🛵 Scooter modellarini tanlang:",
@@ -1845,10 +1918,9 @@ def main():
                 MessageHandler(filters.TEXT & ~filters.COMMAND, waiting_location)
             ],
         },
-        fallbacks=[CommandHandler('start', start)],
-        allow_reentry=True
-    )
-    
+           fallbacks=[CommandHandler('start', start)],
+           allow_reentry=True
+    )    
     application.add_handler(conv_handler)
     
     logger.info("✅ All handlers added")
