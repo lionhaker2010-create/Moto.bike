@@ -24,23 +24,30 @@ class Database:
         """Connection olish"""
         return sqlite3.connect(self.db_path, check_same_thread=False)
     
+    # database.py faylida auto_backup funksiyasini to'g'rilang:
+
     def auto_backup(self):
-        """Avtomatik backup - faqat RENDER'da"""
-        try:
-            # Faqat RENDER muhitida backup olish
-            if 'RENDER' not in os.environ:
-                return
-                
-            if os.path.exists(self.db_path):
-                backup_dir = '/data/backups'
-                os.makedirs(backup_dir, exist_ok=True)
-                
-                backup_file = f"{backup_dir}/motobike_backup_{datetime.now().strftime('%Y%m%d_%H%M')}.db"
+        """Backup funksiyasi - vaqtincha o'chirilgan"""
+        # Vaqtincha backup olishni o'chirib qo'ydik
+        # Render'da RENDER_EXTERNAL_HOSTNAME bo'lsa, backup olamiz
+        if 'RENDER_EXTERNAL_HOSTNAME' in os.environ:
+            try:
+                # Backup faqat /tmp papkasida mumkin
+                import tempfile
                 import shutil
-                shutil.copy2(self.db_path, backup_file)
-                logger.info(f"✅ Render backup yaratildi: {backup_file}")
-        except Exception as e:
-            logger.error(f"❌ Backup yaratishda xatolik: {e}")
+                import datetime
+                
+                if os.path.exists(self.db_path):
+                    # /tmp papkasida backup
+                    backup_dir = '/tmp/backups'
+                    os.makedirs(backup_dir, exist_ok=True)
+                    
+                    timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M')
+                    backup_file = f"{backup_dir}/motobike_backup_{timestamp}.db"
+                    shutil.copy2(self.db_path, backup_file)
+                    logger.info(f"✅ Temp backup created: {backup_file}")
+            except Exception as e:
+                logger.error(f"❌ Backup error: {e}")
     
     def init_db(self):
         """Ma'lumotlar bazasini yaratish"""
