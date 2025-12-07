@@ -7,8 +7,6 @@ from datetime import datetime
 logger = logging.getLogger(__name__)
 
 class Database:
-   # database.py - Database class __init__ metodida
-
     def __init__(self):
         # RENDER muhitida bo'lsak, /data ni ishlatamiz
         if 'RENDER' in os.environ:
@@ -21,13 +19,13 @@ class Database:
             logger.info(f"📁 Local database: {self.db_path}")
         
         self.init_db()
-    
+
     def _get_connection(self):
-        """Connection olish - Render uchun optimallashtirilgan"""
+        """Connection olish"""
         return sqlite3.connect(self.db_path, check_same_thread=False)
     
     def auto_backup(self):
-        """Backup funksiyasi - faqat RENDER'da"""
+        """Avtomatik backup - faqat RENDER'da"""
         try:
             # Faqat RENDER muhitida backup olish
             if 'RENDER' not in os.environ:
@@ -44,10 +42,9 @@ class Database:
         except Exception as e:
             logger.error(f"❌ Backup yaratishda xatolik: {e}")
     
-    # ... qolgan metodlar o'zgarmaydi, faqat db_path o'zgaradi ...
-
     def init_db(self):
         """Ma'lumotlar bazasini yaratish"""
+        conn = None
         try:
             conn = self._get_connection()
             cursor = conn.cursor()
@@ -64,7 +61,7 @@ class Database:
                     registration_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     blocked BOOLEAN DEFAULT FALSE
                 )
-            ''')  # Bu # emas, Python comment!
+            ''')
             
             # Mahsulotlar jadvali
             cursor.execute('''
@@ -107,8 +104,6 @@ class Database:
                     FOREIGN KEY (user_id) REFERENCES users (user_id)
                 )
             ''')
-        
-        # ... qolgan kod
             
             # Jadval mavjudligini tekshirish va yangi ustun qo'shish
             try:
@@ -137,10 +132,12 @@ class Database:
         except Exception as e:
             logger.error(f"Ma'lumotlar bazasini yaratishda xatolik: {e}")
         finally:
-            conn.close()
+            if conn:
+                conn.close()
     
     def add_user(self, user_id, first_name):
         """Yangi foydalanuvchi qo'shish"""
+        conn = None
         try:
             conn = self._get_connection()
             cursor = conn.cursor()
@@ -153,10 +150,12 @@ class Database:
         except Exception as e:
             logger.error(f"Foydalanuvchi qo'shishda xatolik: {e}")
         finally:
-            conn.close()
+            if conn:
+                conn.close()
     
     def update_user(self, user_id, **kwargs):
         """Foydalanuvchi ma'lumotlarini yangilash"""
+        conn = None
         try:
             conn = self._get_connection()
             cursor = conn.cursor()
@@ -169,10 +168,12 @@ class Database:
         except Exception as e:
             logger.error(f"Foydalanuvchini yangilashda xatolik: {e}")
         finally:
-            conn.close()
+            if conn:
+                conn.close()
     
     def get_user(self, user_id):
         """Foydalanuvchi ma'lumotlarini olish"""
+        conn = None
         try:
             conn = self._get_connection()
             cursor = conn.cursor()
@@ -183,7 +184,8 @@ class Database:
             logger.error(f"Foydalanuvchini olishda xatolik: {e}")
             return None
         finally:
-            conn.close()
+            if conn:
+                conn.close()
     
     def is_registered(self, user_id):
         """Foydalanuvchi ro'yxatdan o'tganmi tekshirish"""
@@ -192,6 +194,7 @@ class Database:
     
     def block_user(self, user_id):
         """Foydalanuvchini bloklash"""
+        conn = None
         try:
             conn = self._get_connection()
             cursor = conn.cursor()
@@ -203,10 +206,12 @@ class Database:
             logger.error(f"Foydalanuvchini bloklashda xatolik: {e}")
             return False
         finally:
-            conn.close()
+            if conn:
+                conn.close()
     
     def unblock_user(self, user_id):
         """Foydalanuvchini blokdan ochish"""
+        conn = None
         try:
             conn = self._get_connection()
             cursor = conn.cursor()
@@ -218,10 +223,12 @@ class Database:
             logger.error(f"Foydalanuvchini blokdan ochishda xatolik: {e}")
             return False
         finally:
-            conn.close()
+            if conn:
+                conn.close()
     
     def add_product(self, category, subcategory, name, price, description, image=None):
         """Yangi mahsulot qo'shish"""
+        conn = None
         try:
             conn = self._get_connection()
             cursor = conn.cursor()
@@ -236,10 +243,12 @@ class Database:
             logger.error(f"Mahsulot qo'shishda xatolik: {e}")
             return False
         finally:
-            conn.close()
+            if conn:
+                conn.close()
     
     def get_all_users(self):
         """Barcha foydalanuvchilarni olish"""
+        conn = None
         try:
             conn = self._get_connection()
             cursor = conn.cursor()
@@ -250,10 +259,12 @@ class Database:
             logger.error(f"Foydalanuvchilarni olishda xatolik: {e}")
             return []
         finally:
-            conn.close()
+            if conn:
+                conn.close()
     
     def get_orders(self):
         """Buyurtmalarni olish"""
+        conn = None
         try:
             conn = self._get_connection()
             cursor = conn.cursor()
@@ -270,10 +281,12 @@ class Database:
             logger.error(f"Buyurtmalarni olishda xatolik: {e}")
             return []
         finally:
-            conn.close()
+            if conn:
+                conn.close()
             
     def get_products_by_category(self, category, subcategory=None):
         """Kategoriya bo'yicha mahsulotlarni olish"""
+        conn = None
         try:
             conn = self._get_connection()
             cursor = conn.cursor()
@@ -299,10 +312,12 @@ class Database:
             logger.error(f"Mahsulotlarni olishda xatolik: {e}")
             return []
         finally:
-            conn.close()
+            if conn:
+                conn.close()
 
     def get_product_by_id(self, product_id):
         """ID bo'yicha mahsulotni olish"""
+        conn = None
         try:
             conn = self._get_connection()
             cursor = conn.cursor()
@@ -313,10 +328,12 @@ class Database:
             logger.error(f"Mahsulotni olishda xatolik: {e}")
             return None
         finally:
-            conn.close()
+            if conn:
+                conn.close()
 
     def debug_products(self):
         """Mahsulotlarni tekshirish"""
+        conn = None
         try:
             conn = self._get_connection()
             cursor = conn.cursor()
@@ -331,10 +348,12 @@ class Database:
         except Exception as e:
             print(f"Debug xatosi: {e}")
         finally:
-            conn.close()
+            if conn:
+                conn.close()
             
     def get_all_products(self):
         """Barcha mahsulotlarni olish"""
+        conn = None
         try:
             conn = self._get_connection()
             cursor = conn.cursor()
@@ -349,10 +368,12 @@ class Database:
             logger.error(f"Barcha mahsulotlarni olishda xatolik: {e}")
             return []
         finally:
-            conn.close()
+            if conn:
+                conn.close()
 
     def delete_product(self, product_id):
         """Mahsulotni o'chirish"""
+        conn = None
         try:
             conn = self._get_connection()
             cursor = conn.cursor()
@@ -364,10 +385,12 @@ class Database:
             logger.error(f"Mahsulotni o'chirishda xatolik: {e}")
             return False
         finally:
-            conn.close()
+            if conn:
+                conn.close()
 
     def get_products_by_category_only(self, category):
         """Faqat kategoriya bo'yicha mahsulotlarni olish (subcategory siz)"""
+        conn = None
         try:
             conn = self._get_connection()
             cursor = conn.cursor()
@@ -383,12 +406,12 @@ class Database:
             logger.error(f"Kategoriya bo'yicha mahsulotlarni olishda xatolik: {e}")
             return []
         finally:
-            conn.close()
+            if conn:
+                conn.close()
             
-    # ============ YANGI FUNKSIYALAR ============
-
     def add_order(self, user_id, product_id, quantity=1, status='pending', location=None):
         """Yangi buyurtma qo'shish"""
+        conn = None
         try:
             conn = self._get_connection()
             cursor = conn.cursor()
@@ -404,11 +427,12 @@ class Database:
             logger.error(f"Buyurtma qo'shishda xatolik: {e}")
             return None
         finally:
-            conn.close()
+            if conn:
+                conn.close()
 
-    # database.py faylida add_payment funksiyasiga debug qo'shing
     def add_payment(self, user_id, amount, status='pending', receipt_photo=None):
         """Yangi to'lov qo'shish"""
+        conn = None
         try:
             conn = self._get_connection()
             cursor = conn.cursor()
@@ -424,10 +448,12 @@ class Database:
             logger.error(f"To'lov qo'shishda xatolik: {e}")
             return None
         finally:
-            conn.close()
+            if conn:
+                conn.close()
             
     def update_order_status(self, order_id, status):
         """Buyurtma statusini yangilash"""
+        conn = None
         try:
             conn = self._get_connection()
             cursor = conn.cursor()
@@ -439,10 +465,12 @@ class Database:
             logger.error(f"Buyurtma statusini yangilashda xatolik: {e}")
             return False
         finally:
-            conn.close()
+            if conn:
+                conn.close()
 
     def update_payment_status(self, payment_id, status):
         """To'lov statusini yangilash"""
+        conn = None
         try:
             conn = self._get_connection()
             cursor = conn.cursor()
@@ -454,10 +482,12 @@ class Database:
             logger.error(f"To'lov statusini yangilashda xatolik: {e}")
             return False
         finally:
-            conn.close()
+            if conn:
+                conn.close()
 
     def get_pending_orders(self):
         """Kutayotgan buyurtmalarni olish"""
+        conn = None
         try:
             conn = self._get_connection()
             cursor = conn.cursor()
@@ -475,10 +505,12 @@ class Database:
             logger.error(f"Kutayotgan buyurtmalarni olishda xatolik: {e}")
             return []
         finally:
-            conn.close()
+            if conn:
+                conn.close()
 
     def get_pending_payments(self):
         """Kutayotgan to'lovlarni olish"""
+        conn = None
         try:
             conn = self._get_connection()
             cursor = conn.cursor()
@@ -495,17 +527,18 @@ class Database:
             logger.error(f"Kutayotgan to'lovlarni olishda xatolik: {e}")
             return []
         finally:
-            conn.close()
+            if conn:
+                conn.close()
 
     def get_payment_by_id(self, payment_id):
         """ID bo'yicha to'lovni olish"""
+        conn = None
         try:
             conn = self._get_connection()
             cursor = conn.cursor()
             cursor.execute('SELECT * FROM payments WHERE id = ?', (payment_id,))
             payment = cursor.fetchone()
             
-            # Debug uchun
             if payment:
                 logger.info(f"To'lov topildi: ID={payment[0]}, User_ID={payment[1]}, Amount={payment[2]}")
             else:
@@ -516,10 +549,12 @@ class Database:
             logger.error(f"To'lovni olishda xatolik: {e}")
             return None
         finally:
-            conn.close()
+            if conn:
+                conn.close()
 
     def get_order_by_id(self, order_id):
         """ID bo'yicha buyurtmani olish"""
+        conn = None
         try:
             conn = self._get_connection()
             cursor = conn.cursor()
@@ -536,17 +571,16 @@ class Database:
             logger.error(f"Buyurtmani olishda xatolik: {e}")
             return None
         finally:
-            conn.close()
+            if conn:
+                conn.close()
             
-            
-    # database.py fayliga yangi funksiya:
     def clean_unregistered_users(self, days_old=1):
         """1 kundan ortiq ro'yxatdan o'tmagan foydalanuvchilarni o'chirish"""
+        conn = None
         try:
             conn = self._get_connection()
             cursor = conn.cursor()
             
-            # 1 kun oldin ro'yxatdan o'tmagan foydalanuvchilarni o'chirish
             cursor.execute('''
                 DELETE FROM users 
                 WHERE registered = FALSE 
@@ -563,21 +597,8 @@ class Database:
             logger.error(f"❌ Ro'yxatdan o'tmagan foydalanuvchilarni tozalashda xatolik: {e}")
             return 0
         finally:
-            conn.close()
-
-    # main.py ga qo'shing:
-    def clean_unregistered_users_job():
-        """Har kuni ro'yxatdan o'tmagan foydalanuvchilarni tozalash"""
-        from database import db
-        while True:
-            try:
-                deleted = db.clean_unregistered_users(1)  # 1 kun
-                logger.info(f"✅ {deleted} ta ro'yxatdan o'tmagan foydalanuvchi tozalandi")
-                time.sleep(86400)  # 24 soat
-            except Exception as e:
-                logger.error(f"❌ Tozalashda xatolik: {e}")
-                time.sleep(3600)  # 1 soat        
+            if conn:
+                conn.close()
                 
-
 # Global ma'lumotlar bazasi obyekti
 db = Database()
