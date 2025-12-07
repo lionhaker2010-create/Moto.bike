@@ -10,42 +10,30 @@ class Database:
    # database.py - Database class __init__ metodida
 
     def __init__(self):
-        # RENDER uchun PERSISTENT disk, local uchun oddiy
+        # RENDER muhitida bo'lsak, /data ni ishlatamiz
         if 'RENDER' in os.environ:
-            # RENDER'da - persistent disk
+            # RENDER uchun /data papkasi
             self.db_path = '/data/motobike.db'
-            # Agar /data papkasi yo'q bo'lsa, yaratish
-            try:
-                os.makedirs('/data', exist_ok=True)
-                logger.info(f"📁 Render persistent disk: {self.db_path}")
-            except Exception as e:
-                logger.error(f"❌ /data papkasini yaratishda xatolik: {e}")
-                # Fallback - hozirgi papkaga
-                self.db_path = 'motobike.db'
+            logger.info(f"📁 Render database: {self.db_path}")
         else:
-            # Local development
+            # Local development - joriy papka
             self.db_path = 'motobike.db'
             logger.info(f"📁 Local database: {self.db_path}")
         
-        # Database fayli mavjudligini tekshirish
-        if os.path.exists(self.db_path):
-            size = os.path.getsize(self.db_path)
-            logger.info(f"✅ Database mavjud, hajmi: {size} bayt")
-        else:
-            logger.warning(f"⚠️ Database fayli yo'q, yangi yaratiladi: {self.db_path}")
-        
         self.init_db()
-        self.auto_backup()
     
     def _get_connection(self):
         """Connection olish - Render uchun optimallashtirilgan"""
         return sqlite3.connect(self.db_path, check_same_thread=False)
     
     def auto_backup(self):
-        """Avtomatik backup"""
+        """Backup funksiyasi - faqat RENDER'da"""
         try:
-            # Agar RENDER muhitida bo'lsak
-            if 'RENDER' in os.environ:
+            # Faqat RENDER muhitida backup olish
+            if 'RENDER' not in os.environ:
+                return
+                
+            if os.path.exists(self.db_path):
                 backup_dir = '/data/backups'
                 os.makedirs(backup_dir, exist_ok=True)
                 
@@ -53,15 +41,6 @@ class Database:
                 import shutil
                 shutil.copy2(self.db_path, backup_file)
                 logger.info(f"✅ Render backup yaratildi: {backup_file}")
-            else:
-                # Localda - joriy papkada backup
-                backup_dir = './backups'
-                os.makedirs(backup_dir, exist_ok=True)
-                
-                backup_file = f"{backdir}/motobike_backup_{datetime.now().strftime('%Y%m%d_%H%M')}.db"
-                import shutil
-                shutil.copy2(self.db_path, backup_file)
-                logger.info(f"✅ Local backup yaratildi: {backup_file}")
         except Exception as e:
             logger.error(f"❌ Backup yaratishda xatolik: {e}")
     

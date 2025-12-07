@@ -2169,9 +2169,8 @@ async def messenger_control(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     return ADMIN_MAIN
 
-# admin_main funksiyasiga:
 elif text == "🤖 Avtomatik Xabarlar":
-    return await messenger_control(update, context)    
+    return await yearly_messenger_control(update, context)  
 
 # admin.py ga:
 async def yearly_messenger_control(update: Update, context: ContextTypes.DEFAULT_TYPE):
