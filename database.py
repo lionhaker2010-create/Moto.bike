@@ -7,14 +7,21 @@ from datetime import datetime
 logger = logging.getLogger(__name__)
 
 class Database:
+   # database.py - Database class __init__ metodida
+
     def __init__(self):
         # RENDER uchun PERSISTENT disk, local uchun oddiy
         if 'RENDER' in os.environ:
             # RENDER'da - persistent disk
             self.db_path = '/data/motobike.db'
             # Agar /data papkasi yo'q bo'lsa, yaratish
-            os.makedirs('/data', exist_ok=True)
-            logger.info(f"📁 Render persistent disk: {self.db_path}")
+            try:
+                os.makedirs('/data', exist_ok=True)
+                logger.info(f"📁 Render persistent disk: {self.db_path}")
+            except Exception as e:
+                logger.error(f"❌ /data papkasini yaratishda xatolik: {e}")
+                # Fallback - hozirgi papkaga
+                self.db_path = 'motobike.db'
         else:
             # Local development
             self.db_path = 'motobike.db'
