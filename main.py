@@ -3,11 +3,11 @@ import asyncio
 from datetime import datetime
 import os
 import time
-import threading
+import threading  # ✅ BU YANGI QATOR
 import requests
 import logging
 import atexit
-import schedule
+# import schedule  # Agar ishlatilmasa, kommentga oling
 
 # ✅ TELEGRAM BIBLIOTEKALARI
 from telegram import (
@@ -1746,6 +1746,7 @@ def main():
     
     # main.py faylida
 
+# ==================== MAIN FUNCTION ====================
 def main():
     """Asosiy funksiya - polling rejimi"""
     TOKEN = os.getenv('BOT_TOKEN')
@@ -1755,8 +1756,24 @@ def main():
     
     logger.info("🚀 Starting MotoBike Bot with PERSISTENT storage...")
     
-    # ✅ FLASK SERVERNI FAQAT BIR MARTA ISHGA TUSHIRISH
-    # Agar allaqachon ishlamasa
+    # ✅ 1. EMERGENCY RESTORE NI O'CHIRIB QO'YAMIZ (FAYL YO'Q)
+    # Bu qismni kommentga oling:
+    # try:
+    #     from emergency_restore import restore_users
+    #     restored = restore_users()
+    #     logger.info(f"✅ {restored} ta foydalanuvchi tiklandi")
+    # except Exception as e:
+    #     logger.error(f"❌ Foydalanuvchilarni tiklashda xatolik: {e}")
+    
+    # ✅ 2. BACKUP SYSTEM ISHGA TUSHIRISH
+    backup_thread = threading.Thread(target=schedule_backup, daemon=True)
+    backup_thread.start()
+    logger.info("✅ Auto-backup system started")
+    
+    # Dasturdan chiqishda backup
+    atexit.register(backup_database)
+    
+    # ✅ 3. FLASK SERVER ISHGA TUSHIRISH (PORT TEKSHIRISH BILAN)
     flask_started = False
     try:
         port = int(os.environ.get("PORT", 8080))
@@ -1764,28 +1781,27 @@ def main():
         import socket
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         result = sock.connect_ex(('127.0.0.1', port))
+        sock.close()
+        
         if result != 0:  # Port bo'sh
-            # Flask serverni background da ishga tushirish
-            def run_flask():
+            def start_flask():
                 try:
                     from server import app
-                    app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False)
+                    app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False, threaded=True)
                 except Exception as e:
                     logger.error(f"❌ Flask server error: {e}")
             
-            import threading
-            flask_thread = threading.Thread(target=run_flask, daemon=True)
+            flask_thread = threading.Thread(target=start_flask, daemon=True)
             flask_thread.start()
             logger.info(f"✅ Flask server started on port {port}")
             flask_started = True
         else:
             logger.info(f"✅ Flask server already running on port {port}")
+            flask_started = True
     except Exception as e:
         logger.error(f"❌ Port check error: {e}")
     
-    # ... qolgan kod ...
-    
-    # ✅ 4. KEEP-ALIVE PING LOOP
+    # main.py faylida keep_alive_ping funksiyasini tahrirlang:
     def keep_alive_ping():
         import time
         import requests
@@ -1797,11 +1813,12 @@ def main():
                 logger.debug("✅ Ping sent")
             except Exception as e:
                 logger.warning(f"⚠️ Ping error: {e}")
-    
+
+    # Va ping_thread yaratishda:
     ping_thread = threading.Thread(target=keep_alive_ping, daemon=True)
     ping_thread.start()
     logger.info("✅ Keep-alive ping loop started")
-    
+        
     # ✅ 5. ASOSIY BOTNI ISHGA TUSHIRISH
     application = Application.builder().token(TOKEN).build()
     
@@ -1878,51 +1895,6 @@ def main():
         time.sleep(10)
         main()
 
-
-# ==================== WEBHOOK FUNCTION (OPTIONAL) ====================
-def main_webhook():
-    """Webhook rejimi (agar kerak bo'lsa)"""
-    TOKEN = os.getenv('BOT_TOKEN')
-    
-    if not TOKEN:
-        logger.error("BOT_TOKEN topilmadi!")
-        return
-    
-    logger.info("🚀 Starting MotoBike Bot in webhook mode...")
-    
-    # Application yaratish
-    application = create_application(TOKEN)
-    
-    # Webhook o'rnatish
-    webhook_url = f"https://{os.getenv('RENDER_EXTERNAL_HOSTNAME')}/{TOKEN}"
-    
-    application.run_webhook(
-        listen="0.0.0.0",
-        port=int(os.environ.get("PORT", 8080)),
-        url_path=TOKEN,
-        webhook_url=webhook_url,
-        drop_pending_updates=True
-    )
-
-# ✅ YEARLY MESSENGER ISHGA TUSHIRISH (2025-2026)
-def start_flask_server():
-    """Flask serverni background da ishga tushirish"""
-    try:
-        from server import app
-        port = int(os.environ.get("PORT", 8080))
-        # Oddiy ishga tushirish
-        import threading
-        def run():
-            app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False, threaded=True)
-        thread = threading.Thread(target=run, daemon=True)
-        thread.start()
-        logger.info(f"✅ Flask server started on port {port}")
-    except Exception as e:
-        logger.error(f"❌ Flask server error: {e}")
-
-# main() funksiyasida:
-start_flask_server()
-
 # ==================== ENTRY POINT ====================
 if __name__ == '__main__':
     try:
@@ -1941,4 +1913,4 @@ if __name__ == '__main__':
         traceback.print_exc()
         # Wait and restart
         time.sleep(10)
-        main()       
+        main()   
