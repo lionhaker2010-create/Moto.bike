@@ -32,7 +32,8 @@ def get_admin_keyboard():
         ["👥 Foydalanuvchilar", "📊 Statistika"],
         ["🚫 Bloklash", "✅ Blokdan Ochish"],
         ["📋 Buyurtmalarni Boshqarish", "💰 To'lovlarni Boshqarish"],
-        ["📢 Xabar Yuborish", "📞 Birga Bog'lanish"],  # ✅ YANGI TUGMA
+        ["📢 Xabar Yuborish", "🤖 Avtomatik Xabarlar"],
+        ["👤 Majburiy Ro'yxatdan O'tkazish", "🧹 Tozalash"],  # ✅ YANGI TUGMALAR
         ["🔴 Admin Paneldan Chiqish"]
     ], resize_keyboard=True)
 
@@ -136,6 +137,62 @@ def get_order_management_keyboard():
         ["✅ To'lovni Tasdiqlash", "❌ To'lovni Rad Etish"],
         ["⚠️ Sohta Chek Deb Belgilash", "🔙 Orqaga"]
     ], resize_keyboard=True)
+    
+# admin.py ga yangi funksiya:
+async def force_register_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Foydalanuvchini majburiy ro'yxatdan o'tkazish"""
+    user_id = update.effective_user.id
+    
+    if not is_admin(user_id):
+        await update.message.reply_text("❌ Siz admin emassiz!")
+        return ConversationHandler.END
+    
+    await update.message.reply_text(
+        "👤 **Foydalanuvchini majburiy ro'yxatdan o'tkazish**\n\n"
+        "Foydalanuvchi ID sini kiriting:\n\n"
+        "Masalan: `1076971821`",
+        reply_markup=ReplyKeyboardMarkup([["❌ Bekor qilish"]], resize_keyboard=True),
+        parse_mode='Markdown'
+    )
+    context.user_data['action'] = 'force_register'
+    return ADMIN_MAIN
+
+# admin_main funksiyasiga:
+elif context.user_data.get('action') == 'force_register':
+    try:
+        target_user_id = int(text)
+        
+        # Foydalanuvchini ro'yxatdan o'tkazish
+        db.update_user(target_user_id, registered=True)
+        
+        # Foydalanuvchiga xabar yuborish
+        try:
+            await context.bot.send_message(
+                chat_id=target_user_id,
+                text="✅ **Siz admin tomonidan ro'yxatdan o'tkazildingiz!**\n\n"
+                     "Endi botdan to'liq foydalanishingiz mumkin.\n"
+                     "/start buyrug'i orqali asosiy menyuga o'ting."
+            )
+        except Exception as e:
+            logger.error(f"Foydalanuvchiga xabar yuborishda xatolik: {e}")
+        
+        await update.message.reply_text(
+            f"✅ **Foydalanuvchi** `{target_user_id}` **ro'yxatdan o'tkazildi!**",
+            reply_markup=get_admin_keyboard(),
+            parse_mode='Markdown'
+        )
+        
+        context.user_data.clear()
+        return ADMIN_MAIN
+        
+    except ValueError:
+        await update.message.reply_text(
+            "❌ **Noto'g'ri ID format!**\n\n"
+            "Faqat raqamlardan foydalaning.",
+            reply_markup=ReplyKeyboardMarkup([["❌ Bekor qilish"]], resize_keyboard=True),
+            parse_mode='Markdown'
+        )
+        return ADMIN_MAIN    
 
 # Admin start komandasi
 async def admin_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1750,7 +1807,85 @@ async def process_broadcast_message(update: Update, context: ContextTypes.DEFAUL
         "👨‍💼 **Admin Panel**",
         reply_markup=get_admin_keyboard(),
         parse_mode='Markdown'
-    )    
+    ) 
+
+# admin.py ga yangi funksiyalar:
+async def messenger_control(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Auto-messenger boshqaruvi"""
+    user_id = update.effective_user.id
+    
+    if not is_admin(user_id):
+        await update.message.reply_text("❌ Siz admin emassiz!")
+        return ConversationHandler.END
+    
+    await update.message.reply_text(
+        "🤖 **Avtomatik Xabar Yuborish Tizimi**\n\n"
+        "📅 **Jadval:** Kuniga 3 marta\n"
+        "🕗 **08:00** - Ertalabki salom\n"
+        "🕑 **14:00** - Tushki xabar\n"
+        "🕗 **20:00** - Kechki xabar\n\n"
+        "👥 **Kimlarga:** Barcha ro'yxatdan o'tgan foydalanuvchilar\n"
+        "📍 **Vaqt:** Toshkent (GMT+5)\n\n"
+        "Boshqaruvni tanlang:",
+        reply_markup=ReplyKeyboardMarkup([
+            ["▶️ Messenger ni Yoqish", "⏸️ Messenger ni To'xtatish"],
+            ["📤 Test Xabarni Yuborish", "📊 Holatni Ko'rish"],
+            ["🔙 Orqaga"]
+        ], resize_keyboard=True),
+        parse_mode='Markdown'
+    )
+    return ADMIN_MAIN
+
+# admin_main funksiyasiga:
+elif text == "🤖 Avtomatik Xabarlar":
+    return await messenger_control(update, context)    
+
+# admin.py ga:
+async def yearly_messenger_control(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Yearly messenger boshqaruv"""
+    user_id = update.effective_user.id
+    
+    if not is_admin(user_id):
+        await update.message.reply_text("❌ Siz admin emassiz!")
+        return ConversationHandler.END
+    
+    # Messenger holati
+    status = "✅ Ishlamoqda" if yearly_messenger and yearly_messenger.running else "❌ To'xtatilgan"
+    
+    # Joriy va kelgusi oylar
+    if yearly_messenger:
+        year, month = yearly_messenger.get_current_month_year()
+        current_month = f"{year}-{month}"
+    else:
+        current_month = "Noma'lum"
+    
+    await update.message.reply_text(
+        f"🗓️ <b>2025-2026 Yillik Avtomatik Xabar Yuborish</b>\n\n"
+        f"📅 <b>Davr:</b> 2025 Dekabr - 2026 Dekabr\n"
+        f"📆 <b>Joriy oy:</b> {current_month}\n"
+        f"⏰ <b>Vaqt:</b> Toshkent (GMT+5)\n\n"
+        f"🔄 <b>Holat:</b> {status}\n"
+        f"⏳ <b>Kunlik xabarlar:</b>\n"
+        f"• ☀️ 08:00 - Ertalabki\n"
+        f"• 🕑 14:00 - Tushki\n"
+        f"• 🌙 20:00 - Kechki\n\n"
+        f"🌍 <b>Tillar:</b> 🇺🇿 O'zbek, 🇷🇺 Русский, 🇺🇸 English\n\n"
+        f"🎯 <b>Oylik mavzular:</b>\n"
+        f"• Dekabr - Yangi yil tayyorgarligi\n"
+        f"• Yanvar - Yangi imkoniyatlar\n"
+        f"• Fevral - Sevgililar kuni\n"
+        f"• Mart - Bahor, Navro'z\n"
+        f"• ... va boshqalar\n\n"
+        f"<i>📊 Har oy uchun maxsus xabarlar mavjud</i>",
+        reply_markup=ReplyKeyboardMarkup([
+            ["▶️ Yoqish", "⏸️ To'xtatish"],
+            ["📤 Bugungi Test", "📅 Oyni Ko'rish"],
+            ["🔄 Vaqtni Tekshirish", "📊 Statistika"],
+            ["🔙 Orqaga"]
+        ], resize_keyboard=True),
+        parse_mode='HTML'
+    )
+    return ADMIN_MAIN 
 
 # Admin handlerini qaytarish funksiyasi
 def get_admin_handler():

@@ -1,22 +1,54 @@
+# database.py - YANGI VERSIYA (PERSISTENT)
+import os
 import sqlite3
 import logging
-import os
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
 class Database:
-    def __init__(self, db_name='motobike.db'):
-        # Render uchun absolute path ishlatish
-        self.db_name = db_name
+    def __init__(self):
+        # RENDER uchun PERSISTENT disk, local uchun oddiy
+        if 'RENDER' in os.environ:
+            # RENDER'da - persistent disk
+            self.db_path = '/data/motobike.db'
+            # Agar /data papkasi yo'q bo'lsa, yaratish
+            os.makedirs('/data', exist_ok=True)
+            logger.info(f"📁 Render persistent disk: {self.db_path}")
+        else:
+            # Local development
+            self.db_path = 'motobike.db'
+            logger.info(f"📁 Local database: {self.db_path}")
+        
+        # Database fayli mavjudligini tekshirish
+        if os.path.exists(self.db_path):
+            size = os.path.getsize(self.db_path)
+            logger.info(f"✅ Database mavjud, hajmi: {size} bayt")
+        else:
+            logger.warning(f"⚠️ Database fayli yo'q, yangi yaratiladi: {self.db_path}")
+        
         self.init_db()
+        self.auto_backup()
     
     def _get_connection(self):
         """Connection olish - Render uchun optimallashtirilgan"""
-        return sqlite3.connect(self.db_name, check_same_thread=False)
+        return sqlite3.connect(self.db_path, check_same_thread=False)
     
-    # ... qolgan kod o'zgarmaydi
+    def auto_backup(self):
+        """Avtomatik backup"""
+        try:
+            if os.path.exists(self.db_path):
+                backup_dir = '/data/backups' if 'RENDER' in os.environ else './backups'
+                os.makedirs(backup_dir, exist_ok=True)
+                
+                backup_file = f"{backup_dir}/motobike_backup_{datetime.now().strftime('%Y%m%d_%H%M')}.db"
+                import shutil
+                shutil.copy2(self.db_path, backup_file)
+                logger.info(f"✅ Backup yaratildi: {backup_file}")
+        except Exception as e:
+            logger.error(f"❌ Backup yaratishda xatolik: {e}")
     
-    # database.py da SQL so'rovlarni o'zgartiring:
+    # ... qolgan metodlar o'zgarmaydi, faqat db_path o'zgaradi ...
 
     def init_db(self):
         """Ma'lumotlar bazasini yaratish"""
@@ -511,6 +543,45 @@ class Database:
             conn.close()
             
             
+    # database.py fayliga yangi funksiya:
+    def clean_unregistered_users(self, days_old=1):
+        """1 kundan ortiq ro'yxatdan o'tmagan foydalanuvchilarni o'chirish"""
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+            
+            # 1 kun oldin ro'yxatdan o'tmagan foydalanuvchilarni o'chirish
+            cursor.execute('''
+                DELETE FROM users 
+                WHERE registered = FALSE 
+                AND registration_date < datetime('now', '-? days')
+            ''', (days_old,))
+            
+            deleted_count = cursor.rowcount
+            conn.commit()
+            
+            logger.info(f"🧹 {deleted_count} ta ro'yxatdan o'tmagan foydalanuvchi o'chirildi")
+            return deleted_count
+            
+        except Exception as e:
+            logger.error(f"❌ Ro'yxatdan o'tmagan foydalanuvchilarni tozalashda xatolik: {e}")
+            return 0
+        finally:
+            conn.close()
+
+    # main.py ga qo'shing:
+    def clean_unregistered_users_job():
+        """Har kuni ro'yxatdan o'tmagan foydalanuvchilarni tozalash"""
+        from database import db
+        while True:
+            try:
+                deleted = db.clean_unregistered_users(1)  # 1 kun
+                logger.info(f"✅ {deleted} ta ro'yxatdan o'tmagan foydalanuvchi tozalandi")
+                time.sleep(86400)  # 24 soat
+            except Exception as e:
+                logger.error(f"❌ Tozalashda xatolik: {e}")
+                time.sleep(3600)  # 1 soat        
+                
 
 # Global ma'lumotlar bazasi obyekti
 db = Database()

@@ -2,15 +2,17 @@
 import asyncio
 from datetime import datetime
 import os
-import time  # ✅ BU QATOR MUHIM!
+import time
 import threading
 import requests
 import logging
+import atexit
+import schedule
 
 # ✅ TELEGRAM BIBLIOTEKALARI
 from telegram import (
     Update,
-    InputMediaPhoto,  # <-- BU IMPORT QO'SHILDI
+    InputMediaPhoto,
     InlineKeyboardMarkup,
     InlineKeyboardButton,
     ReplyKeyboardMarkup,
@@ -28,8 +30,9 @@ from telegram.ext import (
 
 # ✅ LOYIHA FAYLLARI
 from database import db
-from render_keepalive import keep_alive
+# from render_keepalive import keep_alive  # Agar kerak bo'lsa
 from dotenv import load_dotenv
+from yearly_messenger import YearlyMessenger, yearly_messenger
 
 # ==================== ENVIRONMENT & LOGGING ====================
 load_dotenv()
@@ -39,6 +42,34 @@ logging.basicConfig(
     level=logging.INFO
 )
 logger = logging.getLogger(__name__)
+
+# ==================== BACKUP SYSTEM ====================
+def backup_database():
+    """Har 6 soatda backup olish"""
+    try:
+        from database import db
+        db.auto_backup()
+        logger.info("✅ Database backup completed")
+    except Exception as e:
+        logger.error(f"❌ Backup error: {e}")
+
+def schedule_backup():
+    """Background da backup schedule"""
+    import time
+    while True:
+        try:
+            # Har 6 soatda backup
+            backup_database()
+            # 6 soat = 21600 soniya
+            time.sleep(21600)
+        except Exception as e:
+            logger.error(f"❌ Backup scheduler error: {e}")
+            time.sleep(300)  # 5 daqiqa kutib qayta urinish
+
+# Backup thread ishga tushirish (main() funksiyasida)
+# atexit.register(backup_database)  # Bu yerda emas, main() ichida
+
+# ... Conversation holatlari va qolgan kod ...
 
 # ... (qolgan kodlar o'zgarmaydi, lekin time import qilinganligiga ishonch hosil qiling) ...
 
@@ -191,7 +222,6 @@ def get_all_parts_keyboard(user_id):
         ["🔙 Orqaga"]
     ], resize_keyboard=True)
 
-# Start komandasi - BLOKLASH TEKSHIRISHI QO'SHILDI
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     user_id = user.id
@@ -199,21 +229,20 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # ✅ USER DATANI TOZALASH
     context.user_data.clear()
     
-    # Avval admin tekshirish
+    # ✅ AVVAL ADMIN TEKSHIRISH
     try:
         from admin import is_admin
         if is_admin(user_id):
-            # Admin bo'lsa, admin panelga yo'naltiramiz
             from admin import admin_start
             return await admin_start(update, context)
     except Exception as e:
         logger.error(f"Admin tekshirishda xatolik: {e}")
     
-    # ✅ Foydalanuvchini bazaga qo'shish VA default tilni uz qilish
+    # ✅ FOYDALANUVCHINI BAZAGA QO'SHISH VA DEFAULT TIL
     db.add_user(user_id, user.first_name)
     db.update_user(user_id, language='uz')  # Default til uz
     
-    # Foydalanuvchi bloklanganligini tekshirish
+    # ✅ BLOKLASH TEKSHIRISH
     user_data = db.get_user(user_id)
     if user_data and len(user_data) >= 8 and user_data[7]:  # blocked maydoni
         await update.message.reply_text(
@@ -225,8 +254,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return ConversationHandler.END
     
-    # Agar ro'yxatdan o'tgan bo'lsa, to'g'ridan-to'g'ri asosiy menyuga o'tkazish
+    # ✅ RO'YXATDAN O'TGANLIGINI TEKSHIRISH
     if db.is_registered(user_id):
+        # ✅ RO'YXATDAN O'TGAN - ASOSIY MENYUGA
         user_data = db.get_user(user_id)
         welcome_text = get_text(user_id, 'welcome_back', name=user_data[1])
         await update.message.reply_text(
@@ -235,7 +265,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return MAIN_MENU
     else:
-        # Ro'yxatdan o'tmagan bo'lsa, tilni tanlash bosqichi
+        # ✅ RO'YXATDAN O'TMAGAN - RO'YXATDAN O'TISH BOSQICHIGA
         await update.message.reply_text(
             get_text(user_id, 'welcome'),
             reply_markup=get_language_keyboard()
@@ -400,16 +430,22 @@ async def send_registration_notification_to_admin(update: Update, context: Conte
     except Exception as e:
         logger.error(f"Adminlarga xabar yuborishda xatolik: {e}")    
 
-# Asosiy menyu
 async def main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
+    
+    # ✅ AVVAL RO'YXATDAN O'TISH TEKSHIRISH
+    if not db.is_registered(user_id):
+        await update.message.reply_text(
+            "❌ **Siz ro'yxatdan o'tmagansiz!**\n\n"
+            "Botdan to'liq foydalanish uchun ro'yxatdan o'tishingiz kerak.\n"
+            "Ro'yxatdan o'tish uchun /start buyrug'ini yuboring.",
+            reply_markup=ReplyKeyboardRemove()
+        )
+        return ConversationHandler.END
+    
     text = update.message.text
     
-    # ✅ 1. "Orqaga" ni AVVAL tekshirish (MUHIM FIX!)
-    if text == "🔙 Orqaga" or get_text(user_id, 'back') in text:
-        return await handle_back(update, context)
-    
-    # ✅ 2. Boshqa menyular
+    # ✅ RO'YXATDAN O'TGAN FOYDALANUVCHI UCHUN MENYU
     if "MotoBike" in text:
         await update.message.reply_text(
             "🏍️ MotoBike bo'limi:",
@@ -445,9 +481,19 @@ async def main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # main.py faylida show_products funksiyasini o'zgartiramiz:
 
 async def show_products(update: Update, context: ContextTypes.DEFAULT_TYPE, category, subcategory=None, mode="view"):
-    """Mahsulotlarni ko'rsatish - BARCHA RASMLAR BIRGA"""
+    """Mahsulotlarni ko'rsatish - FAQAT RO'YXATDAN O'TGANLAR UCHUN"""
     user_id = update.effective_user.id
-    products = db.get_products_by_category(category, subcategory)
+    
+    # ✅ RO'YXATDAN O'TISH TEKSHIRISH
+    if not db.is_registered(user_id):
+        await update.message.reply_text(
+            "❌ **Siz ro'yxatdan o'tmagansiz!**\n\n"
+            "Mahsulotlarni ko'rish uchun avval ro'yxatdan o'ting: /start",
+            reply_markup=ReplyKeyboardRemove()
+        )
+        return ConversationHandler.END
+    
+    # ... qolgan kod o'zgarmaydi ...
     
     if not products:
         await update.message.reply_text(
@@ -624,19 +670,15 @@ async def select_product(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # MotoBike menyusi - YANGILANDI
 async def motobike_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
-    text = update.message.text
     
-    # DEBUG
-    print(f"DEBUG motobike_menu: text={text}")
-    print(f"DEBUG: context.user_data={context.user_data}")
-    
-    # 1. "Orqaga" ni tekshirish
-    if text == "🔙 Orqaga":
+    # ✅ RO'YXATDAN O'TISH TEKSHIRISH
+    if not db.is_registered(user_id):
         await update.message.reply_text(
-            get_text(user_id, 'main_menu'),
-            reply_markup=get_main_menu_keyboard(user_id)
+            "❌ **Siz ro'yxatdan o'tmagansiz!**\n\n"
+            "MotoBike bo'limini ko'rish uchun avval ro'yxatdan o'ting: /start",
+            reply_markup=ReplyKeyboardRemove()
         )
-        return MAIN_MENU
+        return ConversationHandler.END
     
     # 2. Sahifalash tugmalari
     elif text in ["⬅️ Oldingi sahifa", "Keyingi sahifa ➡️"]:
@@ -685,16 +727,17 @@ async def motobike_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return MAIN_MENU
 
 # Ehtiyot qismlar menyusi - YANGILANDI
-async def parts_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def scooter_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
-    text = update.message.text
     
-    if text == "🔙 Orqaga":
+    # ✅ RO'YXATDAN O'TISH TEKSHIRISH
+    if not db.is_registered(user_id):
         await update.message.reply_text(
-            "🏍️ MotoBike bo'limi:",
-            reply_markup=get_motobike_keyboard(user_id)
+            "❌ **Siz ro'yxatdan o'tmagansiz!**\n\n"
+            "Scooter bo'limini ko'rish uchun avval ro'yxatdan o'ting: /start",
+            reply_markup=ReplyKeyboardRemove()
         )
-        return MAIN_MENU
+        return ConversationHandler.END
     
     # qolgan kod o'zgarmaydi...
     
@@ -718,6 +761,18 @@ async def parts_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await show_products(update, context, "🏍️ MotoBike", "🔧 MOTO EHTIYOT QISMLAR")
     
     return MAIN_MENU
+    
+async def parts_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    
+    # ✅ RO'YXATDAN O'TISH TEKSHIRISH
+    if not db.is_registered(user_id):
+        await update.message.reply_text(
+            "❌ **Siz ro'yxatdan o'tmagansiz!**\n\n"
+            "Ehtiyot qismlarni ko'rish uchun avval ro'yxatdan o'ting: /start",
+            reply_markup=ReplyKeyboardRemove()
+        )
+        return ConversationHandler.END    
 
 # Scooter menyusi - YANGILANDI
 async def scooter_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1652,16 +1707,33 @@ def start_ping_loop():
 # main.py faylining eng oxirgi qismi:
 
 # ==================== MAIN FUNCTION (YAGONA VERSIYA) ====================
+# ==================== MAIN FUNCTION ====================
 def main():
-    """Asosiy funksiya - polling rejimi (YAGONA VERSIYA)"""
+    """Asosiy funksiya - polling rejimi"""
     TOKEN = os.getenv('BOT_TOKEN')
     if not TOKEN:
         logger.error("BOT_TOKEN topilmadi! Environment variable ni tekshiring.")
         return
     
-    logger.info("🚀 Starting MotoBike Bot...")
+    logger.info("🚀 Starting MotoBike Bot with PERSISTENT storage...")
     
-    # ✅ 1. FLASK SERVERNI ISHGA TUSHIRISH
+    # ✅ 1. AVVAL FOYDALANUVCHILARNI TIKLASH
+    try:
+        from emergency_restore import restore_users
+        restored = restore_users()
+        logger.info(f"✅ {restored} ta foydalanuvchi tiklandi")
+    except Exception as e:
+        logger.error(f"❌ Foydalanuvchilarni tiklashda xatolik: {e}")
+    
+    # ✅ 2. BACKUP SYSTEM ISHGA TUSHIRISH
+    backup_thread = threading.Thread(target=schedule_backup, daemon=True)
+    backup_thread.start()
+    logger.info("✅ Auto-backup system started")
+    
+    # Dasturdan chiqishda backup
+    atexit.register(backup_database)
+    
+    # ✅ 3. FLASK SERVER ISHGA TUSHIRISH
     def start_flask():
         try:
             from server import app
@@ -1675,39 +1747,27 @@ def main():
     flask_thread.start()
     logger.info("✅ Flask server started")
     
-    # ✅ 2. KEEP-ALIVE PING LOOP (25 SONIYA!)
+    # ✅ 4. KEEP-ALIVE PING LOOP
     def keep_alive_ping():
         import time
         import requests
         while True:
-            time.sleep(25)  # 25 soniya - RENDER uchun optimal
+            time.sleep(25)  # 25 soniya
             try:
-                # Local server ping
                 port = os.environ.get("PORT", 8080)
                 requests.get(f"http://localhost:{port}/ping", timeout=5)
-                logger.debug("✅ Ping sent to local server")
-                
-                # External ping (agar mavjud bo'lsa)
-                external_host = os.getenv('RENDER_EXTERNAL_HOSTNAME')
-                if external_host and 'localhost' not in external_host:
-                    try:
-                        requests.get(f"https://{external_host}/ping", timeout=10)
-                        logger.debug("✅ Ping sent to external server")
-                    except:
-                        pass
-                        
+                logger.debug("✅ Ping sent")
             except Exception as e:
                 logger.warning(f"⚠️ Ping error: {e}")
     
     ping_thread = threading.Thread(target=keep_alive_ping, daemon=True)
     ping_thread.start()
-    logger.info("✅ Keep-alive ping loop started (every 25 seconds)")
+    logger.info("✅ Keep-alive ping loop started")
     
-    # ✅ 3. ASOSIY BOTNI ISHGA TUSHIRISH
-    # Bot ilovasini yaratish
+    # ✅ 5. ASOSIY BOTNI ISHGA TUSHIRISH
     application = Application.builder().token(TOKEN).build()
     
-    # 1. Avval ADMIN handlerini qo'shamiz
+    # Handlers qo'shish
     from admin import get_admin_handler
     application.add_handler(get_admin_handler())
     
@@ -1805,6 +1865,16 @@ def main_webhook():
         webhook_url=webhook_url,
         drop_pending_updates=True
     )
+    
+# ✅ YEARLY MESSENGER ISHGA TUSHIRISH (2025-2026)
+    global yearly_messenger
+    yearly_messenger = YearlyMessenger(TOKEN, db)
+    messenger_thread = yearly_messenger.start()
+    
+    now = yearly_messenger.get_tashkent_time()
+    logger.info(f"✅ Yearly messenger started at {now.strftime('%Y-%m-%d %H:%M')}")
+    logger.info("📅 Schedule: 8:00, 14:00, 20:00 daily (Tashkent)")
+    logger.info("🗓️ Period: December 2025 - December 2026")
 
 
 # ==================== ENTRY POINT ====================
@@ -1820,4 +1890,22 @@ if __name__ == '__main__':
         traceback.print_exc()
         # Wait and restart
         time.sleep(10)
-        main()    
+        main()   
+
+  logger.info("🤖 Starting Telegram bot polling...")
+    
+    try:
+        application.run_polling(
+            poll_interval=1.0,
+            timeout=30,
+            drop_pending_updates=True,
+            close_loop=False,
+            allowed_updates=Update.ALL_TYPES,
+            read_timeout=7,
+            write_timeout=7,
+            connect_timeout=7
+        )
+    except Exception as e:
+        logger.error(f"❌ Polling error: {e}")
+        time.sleep(10)
+        main()        
