@@ -7,18 +7,18 @@ from datetime import datetime
 logger = logging.getLogger(__name__)
 
 class Database:
+  # database.py faylida:
+
     def __init__(self):
-        # RENDER muhitida bo'lsak, /data ni ishlatamiz
-        if 'RENDER' in os.environ:
-            # RENDER uchun /data papkasi
-            self.db_path = '/data/motobike.db'
-            logger.info(f"📁 Render database: {self.db_path}")
-        else:
-            # Local development - joriy papka
-            self.db_path = 'motobike.db'
-            logger.info(f"📁 Local database: {self.db_path}")
+        # HAR DOIM JORIY PAPKADA ISHLATAMIZ
+        self.db_path = 'motobike.db'
+        logger.info(f"📁 Database: {self.db_path}")
         
-        self.init_db()
+        try:
+            self.init_db()
+            logger.info("✅ Database initialized successfully")
+        except Exception as e:
+            logger.error(f"❌ Database initialization error: {e}")
 
     def _get_connection(self):
         """Connection olish"""

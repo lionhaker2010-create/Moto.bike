@@ -1702,50 +1702,27 @@ def start_ping_loop():
     ping_thread.start()
     logger.info("✅ Ping loop started")
     return ping_thread
-        
+    
+# main.py faylida, main() funksiyasidan oldin:
 
-# ==================== MAIN FUNCTION ====================
-def main():
-    """Asosiy funksiya - polling rejimi"""
+def start_yearly_messenger():
+    """Yearly messengerni ishga tushirish"""
     TOKEN = os.getenv('BOT_TOKEN')
-    if not TOKEN:
-        logger.error("BOT_TOKEN topilmadi! Environment variable ni tekshiring.")
-        return
-    
-    logger.info("🚀 Starting MotoBike Bot with PERSISTENT storage...")
-    
-    # ✅ 1. AVVAL FOYDALANUVCHILARNI TIKLASH
-    try:
-        from emergency_restore import restore_users
-        restored = restore_users()
-        logger.info(f"✅ {restored} ta foydalanuvchi tiklandi")
-    except Exception as e:
-        logger.error(f"❌ Foydalanuvchilarni tiklashda xatolik: {e}")
-    
-    # ✅ 2. BACKUP SYSTEM ISHGA TUSHIRISH
-    backup_thread = threading.Thread(target=schedule_backup, daemon=True)
-    backup_thread.start()
-    logger.info("✅ Auto-backup system started")
-    
-    # Dasturdan chiqishda backup
-    atexit.register(backup_database)
-    
-    # ✅ 3. FLASK SERVER ISHGA TUSHIRISH
-    def start_flask():
+    if TOKEN:
+        global yearly_messenger
         try:
-            from server import app
-            port = int(os.environ.get("PORT", 8080))
-            logger.info(f"🌐 Flask server starting on port {port}")
-            app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False)
+            yearly_messenger = YearlyMessenger(TOKEN, db)
+            messenger_thread = yearly_messenger.start()
+            
+            now = yearly_messenger.get_tashkent_time()
+            logger.info(f"✅ Yearly messenger started at {now.strftime('%Y-%m-%d %H:%M')}")
+            logger.info("📅 Schedule: 8:00, 14:00, 20:00 daily (Tashkent)")
+            logger.info("🗓️ Period: December 2025 - December 2026")
+            return messenger_thread
         except Exception as e:
-            logger.error(f"❌ Flask server error: {e}")
-    
-    flask_thread = threading.Thread(target=start_flask, daemon=True)
-    flask_thread.start()
-    logger.info("✅ Flask server started")
-    
-    # main.py faylida
-
+            logger.error(f"❌ Yearly messenger start error: {e}")
+    return None    
+        
 # ==================== MAIN FUNCTION ====================
 def main():
     """Asosiy funksiya - polling rejimi"""
