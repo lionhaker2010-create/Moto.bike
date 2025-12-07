@@ -1865,48 +1865,39 @@ def main_webhook():
         webhook_url=webhook_url,
         drop_pending_updates=True
     )
-    
+
 # ✅ YEARLY MESSENGER ISHGA TUSHIRISH (2025-2026)
-    global yearly_messenger
-    yearly_messenger = YearlyMessenger(TOKEN, db)
-    messenger_thread = yearly_messenger.start()
-    
-    now = yearly_messenger.get_tashkent_time()
-    logger.info(f"✅ Yearly messenger started at {now.strftime('%Y-%m-%d %H:%M')}")
-    logger.info("📅 Schedule: 8:00, 14:00, 20:00 daily (Tashkent)")
-    logger.info("🗓️ Period: December 2025 - December 2026")
+def start_yearly_messenger():
+    """Yearly messengerni ishga tushirish"""
+    TOKEN = os.getenv('BOT_TOKEN')
+    if TOKEN and hasattr(db, '__class__'):
+        global yearly_messenger
+        yearly_messenger = YearlyMessenger(TOKEN, db)
+        messenger_thread = yearly_messenger.start()
+        
+        now = yearly_messenger.get_tashkent_time()
+        logger.info(f"✅ Yearly messenger started at {now.strftime('%Y-%m-%d %H:%M')}")
+        logger.info("📅 Schedule: 8:00, 14:00, 20:00 daily (Tashkent)")
+        logger.info("🗓️ Period: December 2025 - December 2026")
+        return messenger_thread
+    return None
 
-
-# ==================== ENTRY POINT ====================
 # ==================== ENTRY POINT ====================
 if __name__ == '__main__':
     try:
+        # Start yearly messenger
+        start_yearly_messenger()
+        
         # Use polling mode for Render
         main()
     except KeyboardInterrupt:
         logger.info("Bot to'xtatildi!")
+        if 'yearly_messenger' in globals() and yearly_messenger:
+            yearly_messenger.stop()
     except Exception as e:
         logger.error(f"Botda xatolik: {e}")
         import traceback
         traceback.print_exc()
         # Wait and restart
         time.sleep(10)
-        main()  
-
-      logger.info("🤖 Starting Telegram bot polling...")
-    
-    try:
-        application.run_polling(
-            poll_interval=1.0,
-            timeout=30,
-            drop_pending_updates=True,
-            close_loop=False,
-            allowed_updates=Update.ALL_TYPES,
-            read_timeout=7,
-            write_timeout=7,
-            connect_timeout=7
-        )
-    except Exception as e:
-        logger.error(f"❌ Polling error: {e}")
-        time.sleep(10)
-        main()        
+        main()       
