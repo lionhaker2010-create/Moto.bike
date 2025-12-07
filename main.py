@@ -1703,10 +1703,7 @@ def start_ping_loop():
     logger.info("✅ Ping loop started")
     return ping_thread
         
-# ==================== MAIN FUNCTION ====================
-# main.py faylining eng oxirgi qismi:
 
-# ==================== MAIN FUNCTION (YAGONA VERSIYA) ====================
 # ==================== MAIN FUNCTION ====================
 def main():
     """Asosiy funksiya - polling rejimi"""
@@ -1746,6 +1743,47 @@ def main():
     flask_thread = threading.Thread(target=start_flask, daemon=True)
     flask_thread.start()
     logger.info("✅ Flask server started")
+    
+    # main.py faylida
+
+def main():
+    """Asosiy funksiya - polling rejimi"""
+    TOKEN = os.getenv('BOT_TOKEN')
+    if not TOKEN:
+        logger.error("BOT_TOKEN topilmadi! Environment variable ni tekshiring.")
+        return
+    
+    logger.info("🚀 Starting MotoBike Bot with PERSISTENT storage...")
+    
+    # ✅ FLASK SERVERNI FAQAT BIR MARTA ISHGA TUSHIRISH
+    # Agar allaqachon ishlamasa
+    flask_started = False
+    try:
+        port = int(os.environ.get("PORT", 8080))
+        # Port band ekanligini tekshirish
+        import socket
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        result = sock.connect_ex(('127.0.0.1', port))
+        if result != 0:  # Port bo'sh
+            # Flask serverni background da ishga tushirish
+            def run_flask():
+                try:
+                    from server import app
+                    app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False)
+                except Exception as e:
+                    logger.error(f"❌ Flask server error: {e}")
+            
+            import threading
+            flask_thread = threading.Thread(target=run_flask, daemon=True)
+            flask_thread.start()
+            logger.info(f"✅ Flask server started on port {port}")
+            flask_started = True
+        else:
+            logger.info(f"✅ Flask server already running on port {port}")
+    except Exception as e:
+        logger.error(f"❌ Port check error: {e}")
+    
+    # ... qolgan kod ...
     
     # ✅ 4. KEEP-ALIVE PING LOOP
     def keep_alive_ping():
@@ -1867,20 +1905,23 @@ def main_webhook():
     )
 
 # ✅ YEARLY MESSENGER ISHGA TUSHIRISH (2025-2026)
-def start_yearly_messenger():
-    """Yearly messengerni ishga tushirish"""
-    TOKEN = os.getenv('BOT_TOKEN')
-    if TOKEN and hasattr(db, '__class__'):
-        global yearly_messenger
-        yearly_messenger = YearlyMessenger(TOKEN, db)
-        messenger_thread = yearly_messenger.start()
-        
-        now = yearly_messenger.get_tashkent_time()
-        logger.info(f"✅ Yearly messenger started at {now.strftime('%Y-%m-%d %H:%M')}")
-        logger.info("📅 Schedule: 8:00, 14:00, 20:00 daily (Tashkent)")
-        logger.info("🗓️ Period: December 2025 - December 2026")
-        return messenger_thread
-    return None
+def start_flask_server():
+    """Flask serverni background da ishga tushirish"""
+    try:
+        from server import app
+        port = int(os.environ.get("PORT", 8080))
+        # Oddiy ishga tushirish
+        import threading
+        def run():
+            app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False, threaded=True)
+        thread = threading.Thread(target=run, daemon=True)
+        thread.start()
+        logger.info(f"✅ Flask server started on port {port}")
+    except Exception as e:
+        logger.error(f"❌ Flask server error: {e}")
+
+# main() funksiyasida:
+start_flask_server()
 
 # ==================== ENTRY POINT ====================
 if __name__ == '__main__':
