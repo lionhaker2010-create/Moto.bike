@@ -157,42 +157,375 @@ async def force_register_user(update: Update, context: ContextTypes.DEFAULT_TYPE
     context.user_data['action'] = 'force_register'
     return ADMIN_MAIN
 
-# admin_main funksiyasiga:
-elif context.user_data.get('action') == 'force_register':
-    try:
-        target_user_id = int(text)
-        
-        # Foydalanuvchini ro'yxatdan o'tkazish
-        db.update_user(target_user_id, registered=True)
-        
-        # Foydalanuvchiga xabar yuborish
-        try:
-            await context.bot.send_message(
-                chat_id=target_user_id,
-                text="✅ **Siz admin tomonidan ro'yxatdan o'tkazildingiz!**\n\n"
-                     "Endi botdan to'liq foydalanishingiz mumkin.\n"
-                     "/start buyrug'i orqali asosiy menyuga o'ting."
-            )
-        except Exception as e:
-            logger.error(f"Foydalanuvchiga xabar yuborishda xatolik: {e}")
-        
+
+async def admin_main(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    
+    if not is_admin(user_id):
+        await update.message.reply_text("❌ Siz admin emassiz!")
+        return ConversationHandler.END
+    
+    text = update.message.text
+    
+    # DEBUG: Nima yozayotganingizni ko'ramiz
+    logger.info(f"Admin main: text='{text}', action={context.user_data.get('action')}")
+    
+    # 1. BEKOR QILISH tugmasi - birinchi tekshirish
+    if text == "❌ Bekor qilish":
+        context.user_data.clear()
         await update.message.reply_text(
-            f"✅ **Foydalanuvchi** `{target_user_id}` **ro'yxatdan o'tkazildi!**",
+            "✅ **Amal bekor qilindi!**",
             reply_markup=get_admin_keyboard(),
             parse_mode='Markdown'
         )
+        return ADMIN_MAIN
+    
+    # 2. FORCE REGISTER bosqichi
+    elif context.user_data.get('action') == 'force_register':
+        try:
+            target_user_id = int(text)
+            
+            # Foydalanuvchini ro'yxatdan o'tkazish
+            db.update_user(target_user_id, registered=True)
+            
+            # Foydalanuvchiga xabar yuborish
+            try:
+                await context.bot.send_message(
+                    chat_id=target_user_id,
+                    text="✅ **Siz admin tomonidan ro'yxatdan o'tkazildingiz!**\n\n"
+                         "Endi botdan to'liq foydalanishingiz mumkin.\n"
+                         "/start buyrug'i orqali asosiy menyuga o'ting."
+                )
+            except Exception as e:
+                logger.error(f"Foydalanuvchiga xabar yuborishda xatolik: {e}")
+            
+            await update.message.reply_text(
+                f"✅ **Foydalanuvchi** `{target_user_id}` **ro'yxatdan o'tkazildi!**",
+                reply_markup=get_admin_keyboard(),
+                parse_mode='Markdown'
+            )
+            
+            context.user_data.clear()
+            return ADMIN_MAIN
+            
+        except ValueError:
+            await update.message.reply_text(
+                "❌ **Noto'g'ri ID format!**\n\n"
+                "Faqat raqamlardan foydalaning.",
+                reply_markup=ReplyKeyboardMarkup([["❌ Bekor qilish"]], resize_keyboard=True),
+                parse_mode='Markdown'
+            )
+            return ADMIN_MAIN
+    
+    # 3. XABAR YUBORISH bosqichi
+    elif context.user_data.get('action') == 'send_message_to_customer':
+        target_user_id = context.user_data.get('contact_user_id')
         
+        if not target_user_id:
+            await update.message.reply_text(
+                "❌ **Foydalanuvchi ID si topilmadi!**\n\n"
+                "Qaytadan boshlang.",
+                reply_markup=get_admin_keyboard(),
+                parse_mode='Markdown'
+            )
+            context.user_data.clear()
+            return ADMIN_MAIN
+        
+        # Xabar uzunligini tekshirish
+        if len(text.strip()) < 2:
+            await update.message.reply_text(
+                "❌ **Xabar juda qisqa!**\n\n"
+                "Iltimos, kamida 2 belgidan iborat xabar yuboring.",
+                reply_markup=ReplyKeyboardMarkup([["❌ Bekor qilish"]], resize_keyboard=True),
+                parse_mode='Markdown'
+            )
+            return ADMIN_MAIN
+        
+        # Foydalanuvchiga xabar yuborish
+        try:
+            # Foydalanuvchi mavjudligini tekshirish
+            user_info = db.get_user(target_user_id)
+            if not user_info:
+                await update.message.reply_text(
+                    f"❌ **Foydalanuvchi topilmadi!**\n\n"
+                    f"ID: `{target_user_id}`",
+                    reply_markup=get_admin_keyboard(),
+                    parse_mode='Markdown'
+                )
+                context.user_data.clear()
+                return ADMIN_MAIN
+            
+            # Xabar yuborish
+            await context.bot.send_message(
+                chat_id=target_user_id,
+                text=f"📨 **Admin xabari:**\n\n{text}"
+            )
+            
+            await update.message.reply_text(
+                f"✅ **Xabar muvaffaqiyatli yuborildi!**\n\n"
+                f"👤 **Foydalanuvchi ID:** `{target_user_id}`\n"
+                f"📝 **Xabar:** {text}",
+                reply_markup=get_admin_keyboard(),
+                parse_mode='Markdown'
+            )
+            
+            logger.info(f"✅ Admin xabar yubordi: admin_id={user_id}, target_id={target_user_id}")
+            
+        except Exception as e:
+            error_msg = str(e)
+            logger.error(f"❌ Xabar yuborishda xatolik: {error_msg}")
+            
+            await update.message.reply_text(
+                f"❌ **Xabar yuborishda xatolik!**\n\n"
+                f"👤 Foydalanuvchi ID: `{target_user_id}`\n\n"
+                f"❌ **Xatolik:** {error_msg}\n\n"
+                f"Foydalanuvchi botni bloklagan yoki mavjud emas.",
+                reply_markup=get_admin_keyboard(),
+                parse_mode='Markdown'
+            )
+        
+        # User datani tozalash
         context.user_data.clear()
         return ADMIN_MAIN
+    
+    # 4. BROADCAST XABAR bosqichi
+    elif context.user_data.get('action') == 'broadcast_message':
+        # Bu yerda faqat context.user_data['broadcast_message'] ni saqlaymiz
+        # Haqiqiy yuborish keyinroq
+        context.user_data['broadcast_message'] = text
         
-    except ValueError:
+        # Tasdiqlash so'raymiz
         await update.message.reply_text(
-            "❌ **Noto'g'ri ID format!**\n\n"
-            "Faqat raqamlardan foydalaning.",
+            f"⚠️ **BARCHA FOYDALANUVCHILARGA XABAR YUBORISH** ⚠️\n\n"
+            f"📝 **Xabar matni:**\n{text}\n\n"
+            f"📊 **Foydalanuvchilar soni:** {len(db.get_all_users())} ta\n\n"
+            f"❓ **Rostdan ham barcha foydalanuvchilarga shu xabarni yubormoqchimisiz?**",
+            reply_markup=ReplyKeyboardMarkup([
+                ["✅ HA, Yuborish", "❌ Yo'q, Bekor qilish"]
+            ], resize_keyboard=True),
+            parse_mode='Markdown'
+        )
+        context.user_data['action'] = 'confirm_broadcast'
+        return ADMIN_MAIN
+    
+    # 5. BROADCAST TASDIQLASH
+    elif context.user_data.get('action') == 'confirm_broadcast':
+        if text == "✅ HA, Yuborish":
+            message_text = context.user_data.get('broadcast_message', '')
+            
+            if not message_text:
+                await update.message.reply_text(
+                    "❌ **Xabar matni topilmadi!**",
+                    reply_markup=get_admin_keyboard(),
+                    parse_mode='Markdown'
+                )
+                context.user_data.clear()
+                return ADMIN_MAIN
+            
+            # Xabarni yuborishni boshlaymiz
+            await process_broadcast_message(update, context, message_text)
+            
+            # User datani tozalash
+            context.user_data.clear()
+            return ADMIN_MAIN
+            
+        elif text == "❌ Yo'q, Bekor qilish":
+            await update.message.reply_text(
+                "✅ **Xabar yuborish bekor qilindi!**",
+                reply_markup=get_admin_keyboard(),
+                parse_mode='Markdown'
+            )
+            context.user_data.clear()
+            return ADMIN_MAIN
+    
+    # 6. ACTION handler (bloklash, bog'lanish)
+    elif 'action' in context.user_data:
+        action = context.user_data['action']
+        
+        # ID ni tekshirish
+        try:
+            target_user_id = int(text)
+        except ValueError:
+            await update.message.reply_text(
+                "❌ **Iltimos, to'g'ri foydalanuvchi ID sini kiriting!**\n\n"
+                "Faqat raqamlardan iborat bo'lishi kerak.\n"
+                "Masalan: `8083596990`",
+                reply_markup=ReplyKeyboardMarkup([["❌ Bekor qilish"]], resize_keyboard=True),
+                parse_mode='Markdown'
+            )
+            return ADMIN_MAIN
+        
+        if action == 'block':
+            await block_user_with_message(update, context, target_user_id)
+            context.user_data.clear()
+            return ADMIN_MAIN
+        
+        elif action == 'unblock':
+            await unblock_user_with_message(update, context, target_user_id)
+            context.user_data.clear()
+            return ADMIN_MAIN
+        
+        elif action == 'contact_customer':
+            # Mijoz bilan bog'lanish - ID ni saqlaymiz
+            context.user_data['contact_user_id'] = target_user_id
+            context.user_data['action'] = 'send_message_to_customer'
+            
+            await update.message.reply_text(
+                f"👤 **Mijoz bilan bog'lanish**\n\n"
+                f"✅ **Foydalanuvchi ID qabul qilindi:** `{target_user_id}`\n\n"
+                f"📝 **Endi xabaringizni yuboring:**\n\n"
+                f"Xabar yuborilgach, avtomatik admin panelga qaytasiz.\n"
+                f"Bekor qilish uchun '❌ Bekor qilish' tugmasini bosing.",
+                reply_markup=ReplyKeyboardMarkup([["❌ Bekor qilish"]], resize_keyboard=True),
+                parse_mode='Markdown'
+            )
+            return ADMIN_MAIN
+    
+    # 7. Asosiy menyu tugmalari
+    elif text == "📦 Mahsulot Qo'shish":
+        return await start_add_product(update, context)
+    
+    elif text == "🗑️ Mahsulot O'chirish":
+        return await start_delete_product(update, context)
+    
+    elif text == "👥 Foydalanuvchilar":
+        return await show_users_list(update, context)
+    
+    elif text == "📊 Statistika":
+        total_users = len(db.get_all_users())
+        total_products = len(db.get_all_products())
+        total_orders = len(db.get_orders())
+        
+        motobike_products = len(db.get_products_by_category_only("🏍️ MotoBike"))
+        scooter_products = len(db.get_products_by_category_only("🛵 Scooter"))
+        electric_products = len(db.get_products_by_category_only("⚡ Electric Scooter"))
+        
+        stats_message = (
+            "📊 **Bot Statistikasi**\n\n"
+            f"👥 **Foydalanuvchilar:** {total_users} ta\n"
+            f"📦 **Jami mahsulotlar:** {total_products} ta\n"
+            f"📋 **Buyurtmalar:** {total_orders} ta\n\n"
+            f"**Kategoriyalar bo'yicha:**\n"
+            f"🏍️ **MotoBike:** {motobike_products} ta\n"
+            f"🛵 **Scooter:** {scooter_products} ta\n"
+            f"⚡ **Electric Scooter:** {electric_products} ta\n"
+        )
+        
+        await update.message.reply_text(
+            stats_message,
+            reply_markup=get_admin_keyboard(),
+            parse_mode='Markdown'
+        )
+    
+    elif text == "🚫 Bloklash":
+        await update.message.reply_text(
+            "🚫 **Bloklash**\n\nFoydalanuvchi ID sini yuboring:\n\nMasalan: `8083596990`",
             reply_markup=ReplyKeyboardMarkup([["❌ Bekor qilish"]], resize_keyboard=True),
             parse_mode='Markdown'
         )
-        return ADMIN_MAIN    
+        context.user_data['action'] = 'block'
+    
+    elif text == "✅ Blokdan Ochish":
+        await update.message.reply_text(
+            "✅ **Blokdan ochish**\n\nFoydalanuvchi ID sini yuboring:\n\nMasalan: `8083596990`",
+            reply_markup=ReplyKeyboardMarkup([["❌ Bekor qilish"]], resize_keyboard=True),
+            parse_mode='Markdown'
+        )
+        context.user_data['action'] = 'unblock'
+    
+    elif text == "📋 Buyurtmalarni Boshqarish":
+        await update.message.reply_text(
+            "📋 **Buyurtma va To'lov Boshqaruvi**\n\n"
+            "Quyidagi bo'limlardan birini tanlang:",
+            reply_markup=get_order_management_keyboard(),
+            parse_mode='Markdown'
+        )
+        return ORDER_MANAGEMENT
+    
+    elif text == "💰 To'lovlarni Boshqarish":
+        await update.message.reply_text(
+            "💰 **To'lov Boshqaruvi**\n\n"
+            "Quyidagi bo'limlardan birini tanlang:",
+            reply_markup=get_order_management_keyboard(),
+            parse_mode='Markdown'
+        )
+        return ORDER_MANAGEMENT
+    
+    elif text == "📞 Foydalanuvchi bilan Bog'lanish":
+        await update.message.reply_text(
+            "👤 **Foydalanuvchi bilan bog'lanish**\n\n"
+            "Foydalanuvchi ID sini kiriting:\n\n"
+            "Masalan: `8083596990`",
+            reply_markup=ReplyKeyboardMarkup([["❌ Bekor qilish"]], resize_keyboard=True),
+            parse_mode='Markdown'
+        )
+        context.user_data['action'] = 'contact_customer'
+    
+    elif text == "📢 Xabar Yuborish":
+        return await send_broadcast_message(update, context)
+    
+    elif text == "⬅️ Oldingi sahifa":
+        page = context.user_data.get('users_page', 0)
+        if page > 0:
+            context.user_data['users_page'] = page - 1
+            await show_users_page(update, context)
+    
+    elif text == "Keyingi sahifa ➡️":
+        page = context.user_data.get('users_page', 0)
+        total_pages = context.user_data.get('total_pages', 1)
+        if page < total_pages - 1:
+            context.user_data['users_page'] = page + 1
+            await show_users_page(update, context)
+    
+    elif text == "🔙 Orqaga":
+        await update.message.reply_text(
+            "👨‍💼 **Admin Panel**",
+            reply_markup=get_admin_keyboard(),
+            parse_mode='Markdown'
+        )
+    
+    elif text == "🔴 Admin Paneldan Chiqish":
+        await update.message.reply_text(
+            "👋 **Admin paneldan chiqdingiz!**\n\n"
+            "Qaytish uchun /admin yoki /start buyrug'ini yuboring.",
+            reply_markup=ReplyKeyboardMarkup([["/start"]], resize_keyboard=True),
+            parse_mode='Markdown'
+        )
+        return ConversationHandler.END
+    
+    # YANGI TUGMALAR
+    elif text == "👤 Majburiy Ro'yxatdan O'tkazish":
+        await update.message.reply_text(
+            "👤 **Foydalanuvchini majburiy ro'yxatdan o'tkazish**\n\n"
+            "Foydalanuvchi ID sini kiriting:\n\n"
+            "Masalan: `1076971821`",
+            reply_markup=ReplyKeyboardMarkup([["❌ Bekor qilish"]], resize_keyboard=True),
+            parse_mode='Markdown'
+        )
+        context.user_data['action'] = 'force_register'
+    
+    elif text == "🤖 Avtomatik Xabarlar":
+        return await yearly_messenger_control(update, context)
+    
+    elif text == "🧹 Tozalash":
+        deleted = db.clean_unregistered_users(1)
+        await update.message.reply_text(
+            f"🧹 **Tozalash yakunlandi!**\n\n"
+            f"✅ {deleted} ta ro'yxatdan o'tmagan foydalanuvchi o'chirildi.",
+            reply_markup=get_admin_keyboard(),
+            parse_mode='Markdown'
+        )
+    
+    # Agar boshqa narsa yozilsa
+    else:
+        await update.message.reply_text(
+            "🤔 **Noma'lum buyruq!**\n\n"
+            "Iltimos, menyudan tugmalardan birini tanlang.",
+            reply_markup=get_admin_keyboard(),
+            parse_mode='Markdown'
+        )
+    
+    return ADMIN_MAIN
 
 # Admin start komandasi
 async def admin_start(update: Update, context: ContextTypes.DEFAULT_TYPE):

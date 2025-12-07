@@ -44,14 +44,24 @@ class Database:
     def auto_backup(self):
         """Avtomatik backup"""
         try:
-            if os.path.exists(self.db_path):
-                backup_dir = '/data/backups' if 'RENDER' in os.environ else './backups'
+            # Agar RENDER muhitida bo'lsak
+            if 'RENDER' in os.environ:
+                backup_dir = '/data/backups'
                 os.makedirs(backup_dir, exist_ok=True)
                 
                 backup_file = f"{backup_dir}/motobike_backup_{datetime.now().strftime('%Y%m%d_%H%M')}.db"
                 import shutil
                 shutil.copy2(self.db_path, backup_file)
-                logger.info(f"✅ Backup yaratildi: {backup_file}")
+                logger.info(f"✅ Render backup yaratildi: {backup_file}")
+            else:
+                # Localda - joriy papkada backup
+                backup_dir = './backups'
+                os.makedirs(backup_dir, exist_ok=True)
+                
+                backup_file = f"{backdir}/motobike_backup_{datetime.now().strftime('%Y%m%d_%H%M')}.db"
+                import shutil
+                shutil.copy2(self.db_path, backup_file)
+                logger.info(f"✅ Local backup yaratildi: {backup_file}")
         except Exception as e:
             logger.error(f"❌ Backup yaratishda xatolik: {e}")
     
