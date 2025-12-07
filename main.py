@@ -3,11 +3,10 @@ import asyncio
 from datetime import datetime
 import os
 import time
-import threading  # ✅ BU YANGI QATOR
+import threading
 import requests
 import logging
 import atexit
-# import schedule  # Agar ishlatilmasa, kommentga oling
 
 # ✅ TELEGRAM BIBLIOTEKALARI
 from telegram import (
@@ -30,7 +29,6 @@ from telegram.ext import (
 
 # ✅ LOYIHA FAYLLARI
 from database import db
-# from render_keepalive import keep_alive  # Agar kerak bo'lsa
 from dotenv import load_dotenv
 from yearly_messenger import YearlyMessenger, yearly_messenger
 
@@ -47,7 +45,6 @@ logger = logging.getLogger(__name__)
 def backup_database():
     """Har 6 soatda backup olish"""
     try:
-        from database import db
         db.auto_backup()
         logger.info("✅ Database backup completed")
     except Exception as e:
@@ -55,7 +52,6 @@ def backup_database():
 
 def schedule_backup():
     """Background da backup schedule"""
-    import time
     while True:
         try:
             # Har 6 soatda backup
@@ -64,14 +60,7 @@ def schedule_backup():
             time.sleep(21600)
         except Exception as e:
             logger.error(f"❌ Backup scheduler error: {e}")
-            time.sleep(300)  # 5 daqiqa kutib qayta urinish
-
-# Backup thread ishga tushirish (main() funksiyasida)
-# atexit.register(backup_database)  # Bu yerda emas, main() ichida
-
-# ... Conversation holatlari va qolgan kod ...
-
-# ... (qolgan kodlar o'zgarmaydi, lekin time import qilinganligiga ishonch hosil qiling) ...
+            time.sleep(300)
 
 # Conversation holatlari
 LANGUAGE, NAME, PHONE, LOCATION, MAIN_MENU, PRODUCT_SELECTED, PAYMENT_CONFIRMATION, WAITING_LOCATION = range(8)
@@ -94,7 +83,7 @@ TEXTS = {
         'language_changed': "✅ Til muvaffaqiyatli o'zgartirildi!"
     },
     'ru': {
-        'welcome': "👋 Здравствуйте! Добро пожаловать в бот Moto и Scooter!\n\nЗдесь вы можете найти запчасти и одежду для мотоциклов и скутеров. 🏍️\nТакже доступны арендные электрические скутеры! ⚡",
+        'welcome': "👋 Здравствуйте! Добро пожаловать в бот Moto и Scooter!\n\nЗдесь вы можете найти запчасти и одежду для мотоциклов и скутеers. 🏍️\nТакже доступны арендные электрические скутеры! ⚡",
         'welcome_back': "👋 С возвращением! {name}",
         'choose_language': "🌐 Выберите нужный язык:",
         'enter_name': "✍️ Пожалуйста, введите ваше имя:",
@@ -129,30 +118,16 @@ def get_text(user_id, key, **kwargs):
     """Foydalanuvchi tiliga mos matnni qaytarish"""
     user = db.get_user(user_id)
     
-    # Debug uchun
-    print(f"DEBUG get_text: user_id={user_id}, key={key}")
-    if user:
-        print(f"DEBUG: user found, language={user[4] if len(user) > 4 else 'NO LANGUAGE'}")
-    else:
-        print(f"DEBUG: user NOT found")
-    
-    # Terni aniqlash
     if not user:
         language = 'uz'
     elif len(user) > 4:
-        language = user[4]  # language maydoni (5-o'rinda)
+        language = user[4]
     else:
         language = 'uz'
     
-    print(f"DEBUG: final language={language}")
-    
-    # Matnni olish
     text_dict = TEXTS.get(language, {})
-    text = text_dict.get(key, f"[{key}]")  # Agar topilmasa, key ni chiqar
+    text = text_dict.get(key, f"[{key}]")
     
-    print(f"DEBUG: text from dict={text}")
-    
-    # Formatlash
     if kwargs:
         try:
             return text.format(**kwargs)
@@ -161,22 +136,23 @@ def get_text(user_id, key, **kwargs):
     return text
 
 # Tugmalar
-def get_language_keyboard():
+def get_language_keyboard_no_back():
+    """Orqaga tugmasiz til tanlash klaviaturasi"""
     return ReplyKeyboardMarkup([
         ["🇺🇿 O'zbek", "🇷🇺 Русский", "🇺🇸 English"]
-    ], resize_keyboard=True)
+    ], resize_keyboard=True, one_time_keyboard=True)
 
-def get_phone_keyboard():
+def get_phone_keyboard_no_back():
+    """Orqaga tugmasiz telefon klaviaturasi"""
     return ReplyKeyboardMarkup([
-        [{"text": "📞 Telefon raqamni yuborish", "request_contact": True}],
-        ["⬅️ Orqaga"]
-    ], resize_keyboard=True)
+        [{"text": "📞 Telefon raqamni yuborish", "request_contact": True}]
+    ], resize_keyboard=True, one_time_keyboard=True)
 
-def get_location_keyboard():
+def get_location_keyboard_no_back():
+    """Orqaga tugmasiz joylashuv klaviaturasi"""
     return ReplyKeyboardMarkup([
-        [{"text": "📍 Joylashuvni yuborish", "request_location": True}],
-        ["⬅️ Orqaga"]
-    ], resize_keyboard=True)
+        [{"text": "📍 Joylashuvni yuborish", "request_location": True}]
+    ], resize_keyboard=True, one_time_keyboard=True)
 
 def get_main_menu_keyboard(user_id):
     return ReplyKeyboardMarkup([
@@ -188,14 +164,14 @@ def get_motobike_keyboard(user_id):
     return ReplyKeyboardMarkup([
         ["🛡️ Shlemlar", "👕 Moto Kiyimlar", "👞 Oyoq kiyimlari"],
         ["🦵 Oyoq Himoya", "🧤 Qo'lqoplar", "🎭 Yuz himoya"],
-        ["🔧 MOTO EHTIYOT QISMLAR", get_text(user_id, 'back')]  # "🔙 Orqaga"
+        ["🔧 MOTO EHTIYOT QISMLAR", get_text(user_id, 'back')]
     ], resize_keyboard=True)
 
 def get_scooter_keyboard(user_id):
     return ReplyKeyboardMarkup([
         ["⛽ Tank", "🚀 H Max", "⭐ Stell Max"],
         ["⚔️ Samuray", "🐅 Tiger", "🔧 Barcha Qismlar"],
-        [get_text(user_id, 'back')]  # "🔙 Orqaga"
+        [get_text(user_id, 'back')]
     ], resize_keyboard=True)
 
 def get_parts_keyboard(user_id):
@@ -207,13 +183,6 @@ def get_parts_keyboard(user_id):
         ["⚡ Babinalar", "📦 Skores Karobka", "🔄 Karburator"],
         ["🛞 Apornik Disc", "🛑 Klotkalar", "🎨 Tunning Qismlari"],
         ["📦 Boshqa Qismlar", get_text(user_id, 'back')]
-    ], resize_keyboard=True)
-
-def get_scooter_keyboard(user_id):
-    return ReplyKeyboardMarkup([
-        ["⛽ Tank", "🚀 H Max", "⭐ Stell Max"],
-        ["⚔️ Samuray", "🐅 Tiger", "🔧 Barcha Qismlar"],
-        [get_text(user_id, 'back')]
     ], resize_keyboard=True)
 
 def get_all_parts_keyboard(user_id):
@@ -240,59 +209,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # ✅ FOYDALANUVCHINI BAZAGA QO'SHISH VA DEFAULT TIL
     db.add_user(user_id, user.first_name)
-    db.update_user(user_id, language='uz')  # Default til uz
+    db.update_user(user_id, language='uz')
     
     # ✅ BLOKLASH TEKSHIRISH
     user_data = db.get_user(user_id)
-    if user_data and len(user_data) >= 8 and user_data[7]:  # blocked maydoni
-        await update.message.reply_text(
-            "❌ **Siz bloklangansiz!**\n\n"
-            "Botdan foydalanish huquqingiz cheklangan.\n"
-            "Admin bilan bog'laning: @Operator_Kino_1985\n"
-            "Yoki telefon: +998(98)8882505",
-            reply_markup=ReplyKeyboardRemove()
-        )
-        return ConversationHandler.END
-    
-    # ✅ RO'YXATDAN O'TGANLIGINI TEKSHIRISH
-    if db.is_registered(user_id):
-        # ✅ RO'YXATDAN O'TGAN - ASOSIY MENYUGA
-        user_data = db.get_user(user_id)
-        welcome_text = get_text(user_id, 'welcome_back', name=user_data[1])
-        await update.message.reply_text(
-            welcome_text,
-            reply_markup=get_main_menu_keyboard(user_id)
-        )
-        return MAIN_MENU
-    else:
-        # ✅ RO'YXATDAN O'TMAGAN - RO'YXATDAN O'TISH BOSQICHIGA
-        await update.message.reply_text(
-            get_text(user_id, 'welcome'),
-            reply_markup=get_language_keyboard()
-        )
-        return LANGUAGEasync def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.effective_user
-    user_id = user.id
-    
-    # ✅ USER DATANI TOZALASH
-    context.user_data.clear()
-    
-    # ✅ AVVAL ADMIN TEKSHIRISH
-    try:
-        from admin import is_admin
-        if is_admin(user_id):
-            from admin import admin_start
-            return await admin_start(update, context)
-    except Exception as e:
-        logger.error(f"Admin tekshirishda xatolik: {e}")
-    
-    # ✅ FOYDALANUVCHINI BAZAGA QO'SHISH VA DEFAULT TIL
-    db.add_user(user_id, user.first_name)
-    db.update_user(user_id, language='uz')  # Default til uz
-    
-    # ✅ BLOKLASH TEKSHIRISH
-    user_data = db.get_user(user_id)
-    if user_data and len(user_data) >= 8 and user_data[7]:  # blocked maydoni
+    if user_data and len(user_data) >= 8 and user_data[7]:
         await update.message.reply_text(
             "❌ **Siz bloklangansiz!**\n\n"
             "Botdan foydalanish huquqingiz cheklangan.\n"
@@ -303,7 +224,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return ConversationHandler.END
     
     # ✅ HECH QANDAY "ORQAGA" TUGMASIZ RO'YXATDAN O'TISH
-    # Faqat ro'yxatdan o'tganlar asosiy menyuga o'tishi mumkin
     if db.is_registered(user_id):
         user_data = db.get_user(user_id)
         welcome_text = get_text(user_id, 'welcome_back', name=user_data[1])
@@ -318,30 +238,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "🔐 **Ro'yxatdan o'tish majburiy!**\n\n"
             "Botdan to'liq foydalanish uchun ro'yxatdan o'tishingiz kerak.\n\n"
             "🌐 **Tilni tanlang:**",
-            reply_markup=get_language_keyboard_no_back()  # ✅ YANGI: Orqaga tugmasiz
+            reply_markup=get_language_keyboard_no_back()
         )
         return LANGUAGE
-
-
-def get_language_keyboard_no_back():
-    """Orqaga tugmasiz til tanlash klaviaturasi"""
-    return ReplyKeyboardMarkup([
-        ["🇺🇿 O'zbek", "🇷🇺 Русский", "🇺🇸 English"]
-    ], resize_keyboard=True, one_time_keyboard=True)
-
-
-def get_phone_keyboard_no_back():
-    """Orqaga tugmasiz telefon klaviaturasi"""
-    return ReplyKeyboardMarkup([
-        [{"text": "📞 Telefon raqamni yuborish", "request_contact": True}]
-    ], resize_keyboard=True, one_time_keyboard=True)
-
-
-def get_location_keyboard_no_back():
-    """Orqaga tugmasiz joylashuv klaviaturasi"""
-    return ReplyKeyboardMarkup([
-        [{"text": "📍 Joylashuvni yuborish", "request_location": True}]
-    ], resize_keyboard=True, one_time_keyboard=True)
 
 # LANGUAGE funksiyasini o'zgartiramiz:
 async def choose_language(update: Update, context: ContextTypes.DEFAULT_TYPE):
